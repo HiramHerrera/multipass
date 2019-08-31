@@ -10,10 +10,11 @@ import sys
 from astropy.table import Table
 
 from desitarget.targetmask import obsmask, obsconditions
-from desitarget.targets import calc_priority, main_cmx_or_sv, set_obsconditions
+#from desitarget.targets import calc_priority, main_cmx_or_sv, set_obsconditions
+from targets import calc_priority, main_cmx_or_sv, set_obsconditions
 
 
-def make_mtl(targets, zcat=None, trim=False):
+def make_mtl(targets, zcat=None, trim=False, bright=None):
     """Adds NUMOBS, PRIORITY, and OBSCONDITIONS columns to a targets table.
 
     Parameters
@@ -29,6 +30,8 @@ def make_mtl(targets, zcat=None, trim=False):
         If ``True`` (default), don't include targets that don't need
         any more observations.  If ``False``, include every input target.
 
+    bright : :class:`bool`, required.
+        If ``True`` only use bright time logic. If ``False`` use dark time logic.
     Returns
     -------
     :class:`~astropy.table.Table`
@@ -42,6 +45,9 @@ def make_mtl(targets, zcat=None, trim=False):
     from desiutil.log import get_logger
     log = get_logger()
 
+    if bright is None:
+        raise ValueError('You must specify bright=True or False.')
+    
     # ADM determine whether the input targets are main survey, cmx or SV.
     colnames, masks, survey = main_cmx_or_sv(targets)
     # ADM set the first column to be the "desitarget" column
@@ -91,6 +97,7 @@ def make_mtl(targets, zcat=None, trim=False):
         ztargets['NUMOBS'] = np.zeros(n, dtype=np.int32)
         ztargets['Z'] = -1 * np.ones(n, dtype=np.float32)
         ztargets['ZWARN'] = -1 * np.ones(n, dtype=np.int32)
+        ztargets['SPECTYPE'] = np.repeat('UNOBS', n)
         # ADM if zcat wasn't passed, there is a one-to-one correspondence
         # ADM between the targets and the zcat.
         zmatcher = np.arange(n)
@@ -105,13 +112,13 @@ def make_mtl(targets, zcat=None, trim=False):
     # ADM we need a minor hack to ensure that BGS targets are observed once (and only once)
     # ADM every time, regardless of how many times they've previously been observed.
     # ADM I've turned this off for commissioning. Not sure if we'll keep it in general.
-    if survey != 'cmx':
+    if survey != 'cmx' and bright:
         ii = targets_zmatcher[desi_target] & desi_mask.BGS_ANY > 0
         ztargets['NUMOBS_MORE'][ii] = 1
 
     # ADM assign priorities, note that only things in the zcat can have changed priorities.
     # ADM anything else will be assigned PRIORITY_INIT, below.
-    priority = calc_priority(targets_zmatcher, ztargets)
+    priority = calc_priority(targets_zmatcher, ztargets, bright=bright)
 
     # If priority went to 0==DONOTOBSERVE or 1==OBS or 2==DONE, then NUMOBS_MORE should also be 0.
     # ## mtl['NUMOBS_MORE'] = ztargets['NUMOBS_MORE']
