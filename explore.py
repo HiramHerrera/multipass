@@ -54,6 +54,15 @@ if not os.path.exists(initial_mtl_file):
     subset_ii &= (mtl_data['DEC']>-5) & (mtl_data['DEC']<25)
     mtl_data[subset_ii].write(initial_mtl_file, overwrite=True)
 
+initial_sky_file = "targets/subset_dr8_sky.fits"
+if not os.path.exists(initial_sky_file):
+    sky_data = Table.read("/project/projectdirs/desi/target/catalogs/dr8/0.31.0/skies/skies-dr8-0.31.0.fits")
+    subset_ii = (sky_data['RA']>155) & (sky_data['RA']<185)
+    subset_ii &= (sky_data['DEC']>-5) & (sky_data['DEC']<25)
+    print('writing sky')
+    sky_data[subset_ii].write(initial_sky_file, overwrite=True)
+    print('done writing sky')
+    
 def assign_lya_qso(initial_mtl_file, pixweight_file):
     targets = Table.read(initial_mtl_file)
 
@@ -173,6 +182,40 @@ if not os.path.exists(initial_truth_file):
     truth.write(initial_truth_file, overwrite=True)
     print('done truth')
     
+def prepare_tiles():
+    tiles = Table(desimodel.io.load_tiles())
+
+    ii_tiles = tiles['PROGRAM'] != 'BRIGHT'
+    ii_tiles &= tiles['RA'] > 160 
+    ii_tiles &= tiles['RA'] < 180
+    ii_tiles &= tiles['DEC'] > 0
+    ii_tiles &= tiles['DEC'] < 20
+
+    tilefile = 'footprint/subset_tiles.fits'
+    tiles[ii_tiles].write(tilefile, overwrite='True')
+    tiles = Table.read(tilefile)
+
+    ii_gray = tiles['PROGRAM']=='GRAY'
+    ii_dark_0 = (tiles['PROGRAM']=='DARK') & (tiles['PASS']==0)
+    ii_dark_1 = (tiles['PROGRAM']=='DARK') & (tiles['PASS']==1)
+    ii_dark_2 = (tiles['PROGRAM']=='DARK') & (tiles['PASS']==2)
+    ii_dark_3 = (tiles['PROGRAM']=='DARK') & (tiles['PASS']==3)
+
+    footprint = dict()
+    footprint['gray'] = tiles[ii_gray]
+    footprint['dark0'] = tiles[ii_dark_0]
+    footprint['dark1'] = tiles[ii_dark_1]
+    footprint['dark2'] = tiles[ii_dark_2]
+    footprint['dark3'] = tiles[ii_dark_3]
+
+    footprint['gray'].write('footprint/subset_gray.fits', overwrite=True)
+    footprint['dark0'].write('footprint/subset_dark0.fits', overwrite=True)
+    footprint['dark1'].write('footprint/subset_dark1.fits', overwrite=True)
+    vstack([footprint['dark2'], footprint['dark3']]).write('footprint/subset_dark2_dark3.fits', overwrite=True)
+    vstack([footprint['dark1'], footprint['dark2'], footprint['dark3']]).write('footprint/subset_dark1_dark2_dark3.fits', overwrite=True)
+    vstack([footprint['dark0'], footprint['dark1'], footprint['dark2'], footprint['dark3']]).write('footprint/subset_dark0_dark1_dark2_dark3.fits', overwrite=True)
+    vstack([footprint['gray'], footprint['dark0'], footprint['dark1'], footprint['dark2'], footprint['dark3']]).write('footprint/subset_gray_dark0_dark1_dark2_dark3.fits', overwrite=True)
+
 def consolidate_favail(fba_files):
     # getting all the targetids of the assigned fibers
     print('reading individual fiberassign files')
@@ -242,10 +285,6 @@ def tile_efficiency(qa_json_file):
     print(n_not_enough_sky, n_not_enough_std, np.median(f_unassigned))
     
 def run_strategy(footprint_names, pass_names, strategy):
-#footprint_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
-#pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
-
-    strategy = 'strategy_A'
     for i_pass in range(4):
     
         footprint_name = footprint_names[i_pass]
