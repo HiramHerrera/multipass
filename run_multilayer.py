@@ -12,7 +12,6 @@ from astropy.table import Table, Column, vstack
 import json
 import shutil
 import healpy
-import mtl as mymtl
 import targets
 
 
