@@ -36,8 +36,9 @@ if not os.path.exists(initial_mtl_file):
         target_data = np.hstack((target_data, tmp_data))
         data.close()
         print(i, len(target_files), len(tmp_data))
-    #full_mtl = mymtl.make_mtl(target_data, bright=False)
+#    full_mtl = desitarget.mtl.make_mtl(target_data, 'DARK|GRAY')
     full_mtl = desitarget.mtl.make_mtl(target_data, 'DARK|GRAY')
+
 
     ii_mtl_dark = (full_mtl['OBSCONDITIONS'] & obsconditions.DARK)!=0
     ii_mtl_gray = (full_mtl['OBSCONDITIONS'] & obsconditions.GRAY)!=0
@@ -51,6 +52,7 @@ if not os.path.exists(initial_mtl_file):
     mtl_data = Table.read(mtl_file)
     subset_ii = (mtl_data['RA']>155) & (mtl_data['RA']<185)
     subset_ii &= (mtl_data['DEC']>-5) & (mtl_data['DEC']<25)
+    #subset_ii = mtl_data['DEC']>0
     mtl_data[subset_ii].write(initial_mtl_file, overwrite=True)
 
 initial_sky_file = "targets/subset_dr8_sky.fits"
@@ -58,12 +60,15 @@ if not os.path.exists(initial_sky_file):
     sky_data = Table.read("/project/projectdirs/desi/target/catalogs/dr8/0.31.0/skies/skies-dr8-0.31.0.fits")
     subset_ii = (sky_data['RA']>155) & (sky_data['RA']<185)
     subset_ii &= (sky_data['DEC']>-5) & (sky_data['DEC']<25)
+    #subset_ii = sky_data['DEC']>0
     print('writing sky')
     sky_data[subset_ii].write(initial_sky_file, overwrite=True)
     print('done writing sky')
     
 def assign_lya_qso(initial_mtl_file, pixweight_file):
+    print('started reading targets')
     targets = Table.read(initial_mtl_file)
+    print('finished reading targets')
 
     pixweight, header = fits.getdata(pixweight_file, 'PIXWEIGHTS', header=True)
     hpxnside = header['HPXNSIDE']
@@ -79,6 +84,7 @@ def assign_lya_qso(initial_mtl_file, pixweight_file):
         ii_sample = pixnumber_sample==i
         subpixels[i] =  healpy.ang2pix(hpxnside, theta_w[ii_sample], phi_w[ii_sample], nest=True)
     
+    
     # redefine the covered area for the new pixels from the higher resolution FRACAREA
     covered_area = np.ones(npix_sample)
     for i in range(npix_sample):
@@ -87,7 +93,7 @@ def assign_lya_qso(initial_mtl_file, pixweight_file):
             covered_area[i] = np.sum(pixweight['FRACAREA'][subpixels[i]]**2)/np.sum(pixweight['FRACAREA'][subpixels[i]])
         else:
             covered_area[i] = 0.0
-
+    print('finished computing covered area')
     theta_s, phi_s = healpy.pix2ang(hpxnside_sample, np.arange(npix_sample), nest=True)
 
     pixelarea_sample = healpy.pixelfunc.nside2pixarea(hpxnside_sample, degrees=True)
@@ -99,7 +105,7 @@ def assign_lya_qso(initial_mtl_file, pixweight_file):
 
     # find the pixnumber to which the target belongs (in the hpxnside_sample resolution)
     pixnumber_targets = healpy.ang2pix(hpxnside_sample, targets_theta, targets_phi, nest=True)
-
+    print('finished computed pixnumber for all targets')
     
     # what target are QSOs?
     is_qso = (targets['DESI_TARGET'] & desi_mask.QSO)!=0
@@ -108,17 +114,21 @@ def assign_lya_qso(initial_mtl_file, pixweight_file):
     pixnumber_target_list = list(set(pixnumber_targets)) # list of pixelsIDs covered by the targets in the new resolution
 
     n_qso_per_pixel_targets = np.zeros(len(pixnumber_target_list))
-    for i in range(len(pixnumber_target_list)):
+    n_pixnumber_target_list = len(pixnumber_target_list)
+    print('started counting pixnumber target list', n_pixnumber_target_list)
+    for i in range(n_pixnumber_target_list):
         ii_targets = is_qso & (pixnumber_targets==pixnumber_target_list[i])
         n_qso_per_pixel_targets[i] = np.count_nonzero(ii_targets)
+    print('finished counting pixnumber target list')
     
     n_lya_desired_pixel_targets = np.random.poisson(n_lya_qso_in_pixel[pixnumber_target_list])
-
+    print('finished random poisson')
+    
     # Generate the boolean array to determine whether a target is a lyaqso or not
-    is_lya_qso = np.repeat(False, len(targets))
     n_targets = len(targets)
+    is_lya_qso = np.repeat(False, n_targets)
     target_ids = np.arange(n_targets)
-
+    print('started looping over pixnumber_target_list')
     for i in range(len(pixnumber_target_list)):
         ii_targets = is_qso & (pixnumber_targets==pixnumber_target_list[i])
         n_qso_in_pixel = np.count_nonzero(ii_targets)
@@ -189,7 +199,8 @@ def prepare_tiles():
     ii_tiles &= tiles['RA'] < 180
     ii_tiles &= tiles['DEC'] > 0
     ii_tiles &= tiles['DEC'] < 20
-
+    #ii_tiles = tiles['DEC']>0
+    
     tilefile = 'footprint/subset_tiles.fits'
     tiles[ii_tiles].write(tilefile, overwrite='True')
     tiles = Table.read(tilefile)
@@ -283,7 +294,7 @@ def tile_efficiency(qa_json_file):
     f_unassigned = (5000 - assign_total)/5000
     print(n_not_enough_sky, n_not_enough_std, np.median(f_unassigned))
     
-def run_strategy(footprint_names, pass_names, strategy):
+def run_strategy(footprint_names, pass_names, obsconditions, strategy):
     for i_pass in range(4):
     
         footprint_name = footprint_names[i_pass]
@@ -322,23 +333,24 @@ def run_strategy(footprint_names, pass_names, strategy):
             fibassign, header = fits.getdata(fba_file, header=True)
             tileid = header['TILEID'] 
             if tileid in footprint['TILEID']:
-            #print(tileid, 'in list', zcat_footprint_filename)
-            #print('keeping {}'.format(fba_file))
+                print(tileid, 'in list', zcat_footprint_filename)
+                print('keeping {}'.format(fba_file))
                 to_keep.append(i_file)
             else:
-                fiberassign_file = fba_file.replace('tile-', 'fiberassign_')
-                if os.path.exists(fiberassign_file):
-                    renamed_file = fiberassign_file.replace('.fits', '_unused.fits')
-                    print(fiberassign_file, renamed_file)
-                    os.rename(fiberassign_file, renamed_file)
+                print('renaming {}'.format(fba_file))
+                fiberassign_file = fba_file.replace('tile-', 'fba_')
+                renamed_file = fiberassign_file.replace('.fits', '_unused.fits')
+                #if os.path.exists(renamed_file):
+                print('renaming', fba_file, renamed_file)
+                os.rename(fba_file, renamed_file)
             
         fba_files = fba_files[to_keep]
-        print(len(fba_files))
+        print('Files to keep', len(fba_files))
             
         # Run qa
-        cmd = "fba_run_qa --dir {} --footprint {}".format(fiberassign_dir, zcat_footprint_filename)
-        print(cmd)
-        os.system(cmd)
+        #cmd = "fba_run_qa --dir {} --footprint {}".format(fiberassign_dir, zcat_footprint_filename)
+        #print(cmd)
+        #os.system(cmd)
         #! $cmd
     
         # Read targets and truth
@@ -353,15 +365,19 @@ def run_strategy(footprint_names, pass_names, strategy):
             zcat = desisim.quickcat.quickcat(fba_files, targets, truth, zcat=old_zcat, perfect=True)        
     
         zcat.write(zcat_filename, overwrite=True)
-        mtl = desitarget.mtl.make_mtl(targets, 'DARK|GRAY', zcat=zcat)
+        #mtl = desitarget.mtl.make_mtl(targets, 'DARK|GRAY', zcat=zcat)
+        mtl = desitarget.mtl.make_mtl(targets, obsconditions[i_pass], zcat=zcat)
         mtl.write(new_mtl_filename, overwrite=True)
 
-
+prepare_tiles()
+        
 footprint_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
 pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
-run_strategy(footprint_names, pass_names, 'strategy_A')
+obsconditions = ['GRAY', 'DARK', 'DARK', 'DARK']
+run_strategy(footprint_names, pass_names, obsconditions, 'strategy_A')
 
 footprint_names = ['gray_dark0_dark1_dark2_dark3', 'dark0_dark1_dark2_dark3', 'dark1_dark2_dark3', 'dark2_dark3', 'full']
 pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
-run_strategy(footprint_names, pass_names, 'strategy_B')
+obsconditions = ['GRAY', 'DARK', 'DARK', 'DARK']
+run_strategy(footprint_names, pass_names, obsconditions, 'strategy_B')
 
