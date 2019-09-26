@@ -50,16 +50,18 @@ if not os.path.exists(initial_mtl_file):
     full_mtl[(ii_mtl_dark | ii_mtl_gray)&ii_inside&ii_north].write(mtl_file, overwrite=True)
     
     mtl_data = Table.read(mtl_file)
-    subset_ii = (mtl_data['RA']>155) & (mtl_data['RA']<185)
-    subset_ii &= (mtl_data['DEC']>-5) & (mtl_data['DEC']<25)
+    subset_ii = (mtl_data['RA']>120) & (mtl_data['RA']<200)
+    subset_ii &= (mtl_data['DEC']>-10) & (mtl_data['DEC']<40)
     #subset_ii = mtl_data['DEC']>0
     mtl_data[subset_ii].write(initial_mtl_file, overwrite=True)
 
 initial_sky_file = "targets/subset_dr8_sky.fits"
 if not os.path.exists(initial_sky_file):
     sky_data = Table.read("/project/projectdirs/desi/target/catalogs/dr8/0.31.0/skies/skies-dr8-0.31.0.fits")
-    subset_ii = (sky_data['RA']>155) & (sky_data['RA']<185)
-    subset_ii &= (sky_data['DEC']>-5) & (sky_data['DEC']<25)
+#    subset_ii = (sky_data['RA']>155) & (sky_data['RA']<185)
+#    subset_ii &= (sky_data['DEC']>-5) & (sky_data['DEC']<25)
+    subset_ii = (sky_data['RA']>120) & (sky_data['RA']<200)
+    subset_ii &= (sky_data['DEC']>-10) & (sky_data['DEC']<40)
     #subset_ii = sky_data['DEC']>0
     print('writing sky')
     sky_data[subset_ii].write(initial_sky_file, overwrite=True)
@@ -195,10 +197,11 @@ def prepare_tiles():
     tiles = Table(desimodel.io.load_tiles())
 
     ii_tiles = tiles['PROGRAM'] != 'BRIGHT'
-    ii_tiles &= tiles['RA'] > 160 
-    ii_tiles &= tiles['RA'] < 180
-    ii_tiles &= tiles['DEC'] > 0
-    ii_tiles &= tiles['DEC'] < 20
+    
+    ii_tiles &= tiles['RA'] > 125 
+    ii_tiles &= tiles['RA'] < 195
+    ii_tiles &= tiles['DEC'] > -5
+    ii_tiles &= tiles['DEC'] < 35
     #ii_tiles = tiles['DEC']>0
     
     tilefile = 'footprint/subset_tiles.fits'
@@ -373,11 +376,11 @@ prepare_tiles()
         
 footprint_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
 pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
-obsconditions = ['GRAY', 'DARK', 'DARK', 'DARK']
+obsconditions = ['DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY']
 run_strategy(footprint_names, pass_names, obsconditions, 'strategy_A')
 
 footprint_names = ['gray_dark0_dark1_dark2_dark3', 'dark0_dark1_dark2_dark3', 'dark1_dark2_dark3', 'dark2_dark3', 'full']
 pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
-obsconditions = ['GRAY', 'DARK', 'DARK', 'DARK']
+obsconditions = ['DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY']
 run_strategy(footprint_names, pass_names, obsconditions, 'strategy_B')
 
