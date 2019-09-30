@@ -98,9 +98,6 @@ def assign_lya_qso(initial_mtl_file, pixweight_file):
             is_lya_qso[ii_lya_qso] = True
     return is_lya_qso
 
-print("Preparing the inital MLT file")
-if not os.path.exists(initial_mtl_file):
-    initial_mtl_file = "targets/subset_dr8_mtl_dark_gray_NGC.fits"
 def write_initial_mtl_file(initial_mtl_file):
     path_to_targets = '/project/projectdirs/desi/target/catalogs/dr8/0.31.1/targets/main/resolve/'
     target_files = glob.glob(os.path.join(path_to_targets, "targets*fits"))
