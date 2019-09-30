@@ -120,7 +120,7 @@ def write_initial_mtl_file(initial_mtl_file):
     ii_north = (full_mtl['RA']>85) & (full_mtl['RA']<300) & (full_mtl['DEC']>-15)
 
     print("Writing nothern cap")
-    mtl_file = "targets/dr8_mtl_dark_gray_northern_cap.fits"
+    mtl_file = "targets/dr8_mtl_dark_gray_NGC.fits"
     full_mtl[(ii_mtl_dark | ii_mtl_gray) & ii_north].write(mtl_file, overwrite=True)
     
     print("Writing subset in the northern cap")
@@ -130,7 +130,7 @@ def write_initial_mtl_file(initial_mtl_file):
 
 def write_initial_sky_file(initial_sky_file):
     sky_data = Table.read("/project/projectdirs/desi/target/catalogs/dr8/0.31.0/skies/skies-dr8-0.31.0.fits")
-    subset_ii = ra_dec_subsect(sky_data)
+    subset_ii = ra_dec_subset(sky_data)
     print('writing sky')
     sky_data[subset_ii].write(initial_sky_file, overwrite=True)
     print('done writing sky')
@@ -240,8 +240,8 @@ def run_strategy(footprint_names, pass_names, obsconditions, strategy):
         assign_footprint_filename = 'footprint/subset_{}.fits'.format(footprint_name)
         zcat_footprint_filename = 'footprint/subset_{}.fits'.format(pass_name)
         fiberassign_dir = '{}/fiberassign_{}/'.format(strategy, pass_name)
-        mtl_filename = '{}/targets/{}_subset_dr8_mtl_dark_gray_northern_cap.fits'.format(strategy, pass_name)
-        new_mtl_filename = '{}/targets/{}_subset_dr8_mtl_dark_gray_northern_cap.fits'.format(strategy, new_pass_name)
+        mtl_filename = '{}/targets/{}_subset_dr8_mtl_dark_gray_NGC.fits'.format(strategy, pass_name)
+        new_mtl_filename = '{}/targets/{}_subset_dr8_mtl_dark_gray_NGC.fits'.format(strategy, new_pass_name)
         old_zcat_filename = '{}/zcat/{}_zcat.fits'.format(strategy, old_pass_name)
         zcat_filename = '{}/zcat/{}_zcat.fits'.format(strategy, pass_name)
     
