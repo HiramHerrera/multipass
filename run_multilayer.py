@@ -99,8 +99,9 @@ def assign_lya_qso(initial_mtl_file, pixweight_file):
     return is_lya_qso
 
 print("Preparing the inital MLT file")
-initial_mtl_file = "targets/subset_dr8_mtl_dark_gray_NGC.fits"
 if not os.path.exists(initial_mtl_file):
+    initial_mtl_file = "targets/subset_dr8_mtl_dark_gray_NGC.fits"
+def write_initial_mtl_file(initial_mtl_file):
     path_to_targets = '/project/projectdirs/desi/target/catalogs/dr8/0.31.1/targets/main/resolve/'
     target_files = glob.glob(os.path.join(path_to_targets, "targets*fits"))
     print('target files to read:', len(target_files))
@@ -130,21 +131,18 @@ if not os.path.exists(initial_mtl_file):
     subset_ii = ra_dec_subset(mtl_data)
     mtl_data[subset_ii].write(initial_mtl_file, overwrite=True)
 
-print("Preparing the inital sky file")
-initial_sky_file = "targets/subset_dr8_sky.fits"
-if not os.path.exists(initial_sky_file):
+def write_initial_sky_file(initial_sky_file):
     sky_data = Table.read("/project/projectdirs/desi/target/catalogs/dr8/0.31.0/skies/skies-dr8-0.31.0.fits")
     subset_ii = ra_dec_subsect(sky_data)
     print('writing sky')
     sky_data[subset_ii].write(initial_sky_file, overwrite=True)
     print('done writing sky')
 
-initial_truth_file = "targets/subset_truth_dr8_mtl_dark_gray_NGC.fits"
-pixweight_file = "/project/projectdirs/desi/target/catalogs/dr8/0.31.1/pixweight/pixweight-dr8-0.31.1.fits"
-print("Preparing Truth File")
-if not os.path.exists(initial_truth_file):
+
+def write_initial_truth_file(initial_truth_file):
     import desitarget.mock.mockmaker as mb
     from desitarget.targetmask import desi_mask, bgs_mask, mws_mask
+    pixweight_file = "/project/projectdirs/desi/target/catalogs/dr8/0.31.1/pixweight/pixweight-dr8-0.31.1.fits"
 
     is_lya_qso = assign_lya_qso(initial_mtl_file, pixweight_file)
     
@@ -304,6 +302,21 @@ os.makedirs('footprint', exist_ok=True)
 
 print("Preparing tiles")
 prepare_tiles()
+
+initial_mtl_file = "targets/subset_dr8_mtl_dark_gray_NGC.fits"
+if not os.path.exists(initial_mtl_file):
+    print("Preparing MTL file")
+    write_initial_mtl_file(initial_mtl_file)
+        
+initial_truth_file = "targets/subset_truth_dr8_mtl_dark_gray_NGC.fits"
+if not os.path.exists(initial_truth_file):
+    print("Preparing Truth File")
+    write_initial_truth_file(initial_truth_file)
+
+initial_sky_file = "targets/subset_dr8_sky.fits"
+if not os.path.exists(initial_sky_file):
+    print("Preparing the inital sky file")
+    write_initial_sky_file(initial_sky_file)
         
 footprint_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
 pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
