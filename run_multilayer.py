@@ -12,62 +12,17 @@ from astropy.table import Table, Column, vstack
 import json
 import shutil
 import healpy
-import targets
-
-
 from desitarget.targetmask import desi_mask, obsconditions
 from collections import Counter
 import subprocess
 
-initial_mtl_file = "targets/subset_dr8_mtl_dark_gray_NGC.fits"
-if not os.path.exists(initial_mtl_file):
-    path_to_targets = '/project/projectdirs/desi/target/catalogs/dr8/0.31.1/targets/main/resolve/'
-    target_files = glob.glob(os.path.join(path_to_targets, "targets*fits"))
-    print(len(target_files))
-    target_files.sort()
-    print(target_files)
-    
-    data = fitsio.FITS(target_files[0], 'r')
-    target_data = data[1].read(columns=['TARGETID', 'DESI_TARGET', 'MWS_TARGET', 'BGS_TARGET', 'SUBPRIORITY', 'NUMOBS_INIT', 'PRIORITY_INIT', 'RA', 'DEC', 'HPXPIXEL'])
-    data.close()
-    for i, i_name in enumerate(target_files[1:]):
-        data = fitsio.FITS(i_name, 'r')
-        tmp_data = data[1].read(columns=['TARGETID', 'DESI_TARGET', 'MWS_TARGET', 'BGS_TARGET', 'SUBPRIORITY', 'NUMOBS_INIT', 'PRIORITY_INIT', 'RA', 'DEC', 'HPXPIXEL'])
-        target_data = np.hstack((target_data, tmp_data))
-        data.close()
-        print(i, len(target_files), len(tmp_data))
-#    full_mtl = desitarget.mtl.make_mtl(target_data, 'DARK|GRAY')
-    full_mtl = desitarget.mtl.make_mtl(target_data, 'DARK|GRAY')
+def ra_dec_subset(data, ra_min=130, ra_max=180, dec_min=-10, dec_max=40):
+    subset_ii = (data['RA']>ra_min) & (data['RA']<ra_max)
+    subset_ii &= (data['DEC']>dec_min) & (data['DEC']<dec_max)
+    return subset_ii
 
-
-    ii_mtl_dark = (full_mtl['OBSCONDITIONS'] & obsconditions.DARK)!=0
-    ii_mtl_gray = (full_mtl['OBSCONDITIONS'] & obsconditions.GRAY)!=0
-    ii_inside = (full_mtl['DEC']>-20)
-    ii_south = (full_mtl['RA']<85) | (full_mtl['RA']>300)
-    ii_north = (full_mtl['RA']>85) & (full_mtl['RA']<300) & (full_mtl['DEC']>-15)
-
-    mtl_file = "targets/dr8_mtl_dark_gray_northern_cap.fits"
-    full_mtl[(ii_mtl_dark | ii_mtl_gray)&ii_inside&ii_north].write(mtl_file, overwrite=True)
-    
-    mtl_data = Table.read(mtl_file)
-    subset_ii = (mtl_data['RA']>120) & (mtl_data['RA']<200)
-    subset_ii &= (mtl_data['DEC']>-10) & (mtl_data['DEC']<40)
-    #subset_ii = mtl_data['DEC']>0
-    mtl_data[subset_ii].write(initial_mtl_file, overwrite=True)
-
-initial_sky_file = "targets/subset_dr8_sky.fits"
-if not os.path.exists(initial_sky_file):
-    sky_data = Table.read("/project/projectdirs/desi/target/catalogs/dr8/0.31.0/skies/skies-dr8-0.31.0.fits")
-#    subset_ii = (sky_data['RA']>155) & (sky_data['RA']<185)
-#    subset_ii &= (sky_data['DEC']>-5) & (sky_data['DEC']<25)
-    subset_ii = (sky_data['RA']>120) & (sky_data['RA']<200)
-    subset_ii &= (sky_data['DEC']>-10) & (sky_data['DEC']<40)
-    #subset_ii = sky_data['DEC']>0
-    print('writing sky')
-    sky_data[subset_ii].write(initial_sky_file, overwrite=True)
-    print('done writing sky')
-    
 def assign_lya_qso(initial_mtl_file, pixweight_file):
+    print("Finding targets that will be lya in the truth file")
     print('started reading targets')
     targets = Table.read(initial_mtl_file)
     print('finished reading targets')
@@ -143,9 +98,50 @@ def assign_lya_qso(initial_mtl_file, pixweight_file):
             is_lya_qso[ii_lya_qso] = True
     return is_lya_qso
 
+print("Preparing the inital MLT file")
+initial_mtl_file = "targets/subset_dr8_mtl_dark_gray_NGC.fits"
+if not os.path.exists(initial_mtl_file):
+    path_to_targets = '/project/projectdirs/desi/target/catalogs/dr8/0.31.1/targets/main/resolve/'
+    target_files = glob.glob(os.path.join(path_to_targets, "targets*fits"))
+    print('target files to read:', len(target_files))
+    target_files.sort()
+    
+    data = fitsio.FITS(target_files[0], 'r')
+    target_data = data[1].read(columns=['TARGETID', 'DESI_TARGET', 'MWS_TARGET', 'BGS_TARGET', 'SUBPRIORITY', 'NUMOBS_INIT', 'PRIORITY_INIT', 'RA', 'DEC', 'HPXPIXEL'])
+    data.close()
+    for i, i_name in enumerate(target_files[1:]):
+        data = fitsio.FITS(i_name, 'r')
+        tmp_data = data[1].read(columns=['TARGETID', 'DESI_TARGET', 'MWS_TARGET', 'BGS_TARGET', 'SUBPRIORITY', 'NUMOBS_INIT', 'PRIORITY_INIT', 'RA', 'DEC', 'HPXPIXEL'])
+        target_data = np.hstack((target_data, tmp_data))
+        data.close()
+        print('reading file', i, len(target_files), len(tmp_data))
+    full_mtl = desitarget.mtl.make_mtl(target_data, 'DARK|GRAY')
+
+    ii_mtl_dark = (full_mtl['OBSCONDITIONS'] & obsconditions.DARK)!=0
+    ii_mtl_gray = (full_mtl['OBSCONDITIONS'] & obsconditions.GRAY)!=0
+    ii_north = (full_mtl['RA']>85) & (full_mtl['RA']<300) & (full_mtl['DEC']>-15)
+
+    print("Writing nothern cap")
+    mtl_file = "targets/dr8_mtl_dark_gray_northern_cap.fits"
+    full_mtl[(ii_mtl_dark | ii_mtl_gray) & ii_north].write(mtl_file, overwrite=True)
+    
+    print("Writing subset in the northern cap")
+    mtl_data = Table.read(mtl_file)
+    subset_ii = ra_dec_subset(mtl_data)
+    mtl_data[subset_ii].write(initial_mtl_file, overwrite=True)
+
+print("Preparing the inital sky file")
+initial_sky_file = "targets/subset_dr8_sky.fits"
+if not os.path.exists(initial_sky_file):
+    sky_data = Table.read("/project/projectdirs/desi/target/catalogs/dr8/0.31.0/skies/skies-dr8-0.31.0.fits")
+    subset_ii = ra_dec_subsect(sky_data)
+    print('writing sky')
+    sky_data[subset_ii].write(initial_sky_file, overwrite=True)
+    print('done writing sky')
+
 initial_truth_file = "targets/subset_truth_dr8_mtl_dark_gray_NGC.fits"
 pixweight_file = "/project/projectdirs/desi/target/catalogs/dr8/0.31.1/pixweight/pixweight-dr8-0.31.1.fits"
-
+print("Preparing Truth File")
 if not os.path.exists(initial_truth_file):
     import desitarget.mock.mockmaker as mb
     from desitarget.targetmask import desi_mask, bgs_mask, mws_mask
@@ -197,15 +193,11 @@ def prepare_tiles():
     tiles = Table(desimodel.io.load_tiles())
 
     ii_tiles = tiles['PROGRAM'] != 'BRIGHT'
-    
-    ii_tiles &= tiles['RA'] > 125 
-    ii_tiles &= tiles['RA'] < 195
-    ii_tiles &= tiles['DEC'] > -5
-    ii_tiles &= tiles['DEC'] < 35
-    #ii_tiles = tiles['DEC']>0
+    ii_subset = ra_dec_subset(tiles) 
+
     
     tilefile = 'footprint/subset_tiles.fits'
-    tiles[ii_tiles].write(tilefile, overwrite='True')
+    tiles[ii_tiles&ii_subset].write(tilefile, overwrite='True')
     tiles = Table.read(tilefile)
 
     ii_gray = tiles['PROGRAM']=='GRAY'
@@ -239,63 +231,6 @@ def consolidate_favail(fba_files):
         id_favail, header = fits.getdata(tile_file, 'FAVAIL', header=True)
         favail.extend(id_favail['TARGETID'])
     return list(set(favail))
-
-def global_efficiency(targets, id_avail, zcat, target_class='QSO', zcat_spectype='QSO', z_max=None, z_min=None):
-    ii_avail = np.in1d(targets['TARGETID'], id_avail)
-    targets_avail = targets[ii_avail]
-
-    if z_max is None and z_min is None:
-        sub_zcat = zcat.copy()
-    elif (z_min is not None) or (z_max is not None):
-        if z_max is not None:
-            sub_zcat = zcat[zcat['Z']<z_max]
-        if z_min is not None:
-            sub_zcat = zcat[zcat['Z']>z_min]
-    else:
-        print("Error")
-        sub_zcat = None
-
-    # input target consistent with target_class
-    is_class = (targets_avail['DESI_TARGET'] & desi_mask.mask(target_class))!=0
-    targets_avail_class = targets_avail[is_class]
-    n_avail = len(targets_avail_class)
-
-    # output in the redshift catalog consistent with truth_spectype
-    sub_zcat_class = sub_zcat[sub_zcat['SPECTYPE']==zcat_spectype]
-    
-    # keep the elements in the zcat that correspond to the correct input target class
-    id_intersection = np.in1d(sub_zcat_class['TARGETID'], targets_avail_class['TARGETID'])
-    sub_zcat_class = sub_zcat_class[id_intersection]
-    n_assigned = len(sub_zcat_class)
-
-    nobs = dict()
-    for i in range(10):
-        nobs[i] = np.count_nonzero(sub_zcat_class['NUMOBS']==i)
-    nobs[0] = (n_avail - n_assigned)
-
-    print(target_class, zcat_spectype, n_assigned/n_avail, n_avail, n_assigned, nobs)
-    
-def tile_efficiency(qa_json_file):
-    f = open(qa_json_file)
-    qa_dict = json.load(f)
-    f.close()
-    assign_total = []
-    assign_science= []
-    assign_sky = []
-    assign_std = []
-    for k in qa_dict:
-        assign_total.append(qa_dict[k]['assign_total'])
-        assign_science.append(qa_dict[k]['assign_science'])
-        assign_sky.append(qa_dict[k]['assign_sky'])
-        assign_std.append(qa_dict[k]['assign_std'])
-    assign_total = np.array(assign_total)
-    assign_science = np.array(assign_science)
-    assign_sky = np.array(assign_sky)
-    assign_std = np.array(assign_std)
-    n_not_enough_sky = np.count_nonzero(assign_sky<400)
-    n_not_enough_std = np.count_nonzero(assign_std<100)
-    f_unassigned = (5000 - assign_total)/5000
-    print(n_not_enough_sky, n_not_enough_std, np.median(f_unassigned))
     
 def run_strategy(footprint_names, pass_names, obsconditions, strategy):
     for i_pass in range(4):
@@ -324,7 +259,6 @@ def run_strategy(footprint_names, pass_names, obsconditions, strategy):
         cmd +=' --footprint {} --outdir {} --overwrite'.format(assign_footprint_filename, fiberassign_dir)
         print(cmd)
         os.system(cmd)
-        #! $cmd
     
         # Gather fiberassign files
         fba_files = np.sort(glob.glob(os.path.join(fiberassign_dir,"tile*.fits")))
@@ -343,18 +277,11 @@ def run_strategy(footprint_names, pass_names, obsconditions, strategy):
                 print('renaming {}'.format(fba_file))
                 fiberassign_file = fba_file.replace('tile-', 'fba_')
                 renamed_file = fiberassign_file.replace('.fits', '_unused.fits')
-                #if os.path.exists(renamed_file):
                 print('renaming', fba_file, renamed_file)
                 os.rename(fba_file, renamed_file)
             
         fba_files = fba_files[to_keep]
         print('Files to keep', len(fba_files))
-            
-        # Run qa
-        #cmd = "fba_run_qa --dir {} --footprint {}".format(fiberassign_dir, zcat_footprint_filename)
-        #print(cmd)
-        #os.system(cmd)
-        #! $cmd
     
         # Read targets and truth
         targets = Table.read(mtl_filename)
@@ -368,10 +295,14 @@ def run_strategy(footprint_names, pass_names, obsconditions, strategy):
             zcat = desisim.quickcat.quickcat(fba_files, targets, truth, zcat=old_zcat, perfect=True)        
     
         zcat.write(zcat_filename, overwrite=True)
-        #mtl = desitarget.mtl.make_mtl(targets, 'DARK|GRAY', zcat=zcat)
         mtl = desitarget.mtl.make_mtl(targets, obsconditions[i_pass], zcat=zcat)
         mtl.write(new_mtl_filename, overwrite=True)
 
+        
+os.makedirs('targets', exist_ok=True)
+os.makedirs('footprint', exist_ok=True)
+
+print("Preparing tiles")
 prepare_tiles()
         
 footprint_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
