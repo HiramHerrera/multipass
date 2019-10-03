@@ -1,4 +1,20 @@
+from astropy.table import Table
+import numpy as np
+import matplotlib.pyplot as plt
+import glob
 import os
+import fitsio
+import desimodel.io
+import desitarget.mtl
+import desisim.quickcat
+from astropy.io import fits
+from astropy.table import Table, Column, vstack
+import json
+import shutil
+import healpy
+from desitarget.targetmask import desi_mask, obsconditions
+from collections import Counter
+import subprocess
 
 def consolidate_favail(fba_files):
     # getting all the targetids of the assigned fibers
@@ -51,5 +67,33 @@ def gather_files(strategy_name, pass_names):
     for p_name in pass_names:
         os.system('cp -v {}/fiberassign_{}/tile*.fits {}/fiberassign_full'.format(strategy_name, p_name, strategy_name))
 
-gather_files('strategy_A', ['gray', 'dark0', 'dark1', 'dark2_dark3'])
-gather_files('strategy_B', ['gray', 'dark0', 'dark1', 'dark2_dark3'])
+#gather_files('strategy_A', ['gray', 'dark0', 'dark1', 'dark2_dark3'])
+#gather_files('strategy_B', ['gray', 'dark0', 'dark1', 'dark2_dark3'])
+
+
+def compute_efficiency(strategy_name, pass_names, targets_file, truth_file):
+    gather_files(strategy_name, pass_names)
+    zcat_file = '{}/zcat/{}_zcat.fits'.format(strategy_name, pass_names[-1])
+    fba_path = '{}/fiberassign_full/tile-*fits'.format(strategy_name)
+    
+    print('Consolidating info from {}'.format(fba_path))
+    fba_files= glob.glob(fba_path)
+    favail = consolidate_favail(fba_files)
+    
+    print('reading zcat', zcat_file)
+    zcat = Table.read(zcat_file)
+    
+    print('reading targets', targets_file)
+    targets = Table.read(targets_file)
+    
+    print('reading truth', truth_file)
+    truth = Table.read(truth_file)
+
+    print('Sorting files')
+    targets.sort(keys='TARGETID')
+    zcat.sort(keys='TARGETID')
+    truth.sort(keys='TARGETID')
+    
+targets_file =     "targets/subset_dr8_mtl_dark_gray_NGC.fits"
+truth_file =     "targets/subset_truth_dr8_mtl_dark_gray_NGC.fits"
+compute_efficiency('strategy_A', ['gray', 'dark0', 'dark1', 'dark2_dark3'], targets_file, truth_file)
