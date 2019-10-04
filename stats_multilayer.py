@@ -120,10 +120,12 @@ def compute_efficiency(strategy_name, pass_names, targets_file, truth_file, myzc
 
 targets_file =  "targets/subset_dr8_mtl_dark_gray_NGC.fits"
 truth_file   =  "targets/subset_truth_dr8_mtl_dark_gray_NGC.fits"
+
 myzcat_file = "myzcat_strategy_A.fits"
 eff_A = compute_efficiency('strategy_A', ['gray', 'dark0', 'dark1', 'dark2_dark3'], targets_file, truth_file, myzcat_file)
 
+myzcat_file = "myzcat_strategy_B.fits"
+eff_B = compute_efficiency('strategy_B', ['gray', 'dark0', 'dark1', 'dark2_dark3'], targets_file, truth_file, myzcat_file)
 
-#eff_B = compute_efficiency('strategy_B', ['gray', 'dark0', 'dark1', 'dark2_dark3'], targets_file)
-#print('strategy A', eff_A)
-#print('strategy B', eff_B)
+print('strategy A', eff_A)
+print('strategy B', eff_B)
