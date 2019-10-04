@@ -68,7 +68,7 @@ def gather_files(strategy_name, pass_names):
         os.system('cp -v {}/fiberassign_{}/tile*.fits {}/fiberassign_full'.format(strategy_name, p_name, strategy_name))
 
 
-def compute_efficiency(strategy_name, pass_names, targets_file):
+def compute_efficiency(strategy_name, pass_names, targets_file, truth_file, myzcat_filename):
     gather_files(strategy_name, pass_names)
     zcat_file = '{}/zcat/{}_zcat.fits'.format(strategy_name, pass_names[-1])
     fba_path = '{}/fiberassign_full/tile-*fits'.format(strategy_name)
@@ -83,11 +83,32 @@ def compute_efficiency(strategy_name, pass_names, targets_file):
     print('reading targets', targets_file)
     targets = Table.read(targets_file)
     
+    print('reading truth', truth_file)
+    truth = Table.read(truth_file)
 
     print('Sorting files')
     targets.sort(keys='TARGETID')
     zcat.sort(keys='TARGETID')
+    truth.sort(keys='TARGETID')
 
+    compiled = targets.copy()
+    ii = np.in1d(targets['TARGETID'], favail)
+    compiled = targets[ii]
+
+    compiled['NUMOBS'] = np.zeros(len(compiled), dtype=int)
+    compiled['Z'] = np.zeros(len(compiled))
+    compiled['TRUEZ'] = np.zeros(len(compiled), dtype=int)
+    compiled['TRUESPECTYPE'] = np.repeat('A', len(compiled))
+
+    ii_from_z = np.in1d(compiled['TARGETID'], zcat['TARGETID'])
+    compiled['Z'][ii_from_z] = zcat['Z']
+    compiled['NUMOBS'][ii_from_z] = np.int_(zcat['NUMOBS'])
+
+    ii_from_truth = np.in1d(truth['TARGETID'], compiled['TARGETID'])
+    compiled['TRUESPECTYPE'] = truth['TRUESPECTYPE'][ii_from_truth]
+    compiled['TRUEZ'] = truth['TRUEZ'][ii_from_truth]
+    compiled[['RA', 'DEC', 'TARGETID', 'DESI_TARGET', 'NUMOBS', 'TRUESPECTYPE', 'TRUEZ']].write(myzcat_file, overwrite=True)
+    
     ii = (targets['RA']>140.0) & (targets['RA']<180.0) & (targets['DEC']>10.0) & (targets['DEC']<20)
     small_targets = targets[ii]
     
@@ -95,10 +116,14 @@ def compute_efficiency(strategy_name, pass_names, targets_file):
     eff_lrg = global_eff(small_targets, favail, zcat, target_class='LRG', zcat_spectype='GALAXY')
     eff_elg = global_eff(small_targets, favail, zcat, target_class='ELG', zcat_spectype='GALAXY')
     return {'eff_qso':eff_qso, 'eff_lrg':eff_lrg, 'eff_elg':eff_elg}
-    
-targets_file =     "targets/subset_dr8_mtl_dark_gray_NGC.fits"
-eff_A = compute_efficiency('strategy_A', ['gray', 'dark0', 'dark1', 'dark2_dark3'], targets_file)
-eff_B = compute_efficiency('strategy_B', ['gray', 'dark0', 'dark1', 'dark2_dark3'], targets_file)
 
-print('strategy A', eff_A)
-print('strategy B', eff_B)
+
+targets_file =  "targets/subset_dr8_mtl_dark_gray_NGC.fits"
+truth_file   =  "targets/subset_truth_dr8_mtl_dark_gray_NGC.fits"
+myzcat_file = "myzcat_strategy_A.fits"
+eff_A = compute_efficiency('strategy_A', ['gray', 'dark0', 'dark1', 'dark2_dark3'], targets_file, truth_file, myzcat_file)
+
+
+#eff_B = compute_efficiency('strategy_B', ['gray', 'dark0', 'dark1', 'dark2_dark3'], targets_file)
+#print('strategy A', eff_A)
+#print('strategy B', eff_B)
