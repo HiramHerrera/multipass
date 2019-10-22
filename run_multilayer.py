@@ -16,7 +16,7 @@ from desitarget.targetmask import desi_mask, obsconditions
 from collections import Counter
 import subprocess
 
-def ra_dec_subset(data, ra_min=130, ra_max=150, dec_min=-10, dec_max=10):
+def ra_dec_subset(data, ra_min=130, ra_max=180, dec_min=-10, dec_max=40):
     subset_ii = (data['RA']>ra_min) & (data['RA']<ra_max)
     subset_ii &= (data['DEC']>dec_min) & (data['DEC']<dec_max)
     return subset_ii
@@ -235,7 +235,7 @@ def consolidate_favail(fba_files):
         favail.extend(id_favail['TARGETID'])
     return list(set(favail))
     
-def run_strategy(footprint_names, pass_names, obsconditions, strategy):
+def run_strategy(footprint_names, pass_names, obsconditions, strategy, initial_mtl_file, initial_sky_file, initial_std_file, legacy=None):
     for i_pass in range(4):
     
         footprint_name = footprint_names[i_pass]
@@ -244,6 +244,9 @@ def run_strategy(footprint_names, pass_names, obsconditions, strategy):
         new_pass_name = pass_names[i_pass+1]
     
         os.makedirs('{}/fiberassign_{}'.format(strategy, pass_name), exist_ok=True)
+        os.makedirs('{}/targets'.format(strategy), exist_ok=True)
+        os.makedirs('{}/zcat'.format(strategy), exist_ok=True)
+
     
         assign_footprint_filename = 'footprint/subset_{}.fits'.format(footprint_name)
         zcat_footprint_filename = 'footprint/subset_{}.fits'.format(pass_name)
@@ -258,8 +261,15 @@ def run_strategy(footprint_names, pass_names, obsconditions, strategy):
         
     
         # Run fiberassign
-        cmd = 'fiberassign --mtl {} --sky targets/subset_dr8_sky.fits '.format(mtl_filename)
-        cmd +=' --footprint {} --outdir {} --overwrite'.format(assign_footprint_filename, fiberassign_dir)
+ 
+        if legacy==True:
+            cmd = 'fiberassign_legacy --mtl {} --sky {} --std {}'.format(mtl_filename, initial_sky_file, initial_std_file)
+            cmd += ' --footprint {} --outdir {} --overwrite '.format(assign_footprint_filename, fiberassign_dir)
+            cmd += ' --fibstatusfile fiberstatus.ecsv --starmask 60129542144'
+        if legacy==False:
+            cmd = 'fiberassign --mtl {} --sky targets/subset_dr8_sky.fits '.format(mtl_filename)
+            cmd +=' --footprint {} --outdir {} --overwrite'.format(assign_footprint_filename, fiberassign_dir)
+            
         print(cmd)
         os.system(cmd)
     
@@ -271,7 +281,7 @@ def run_strategy(footprint_names, pass_names, obsconditions, strategy):
         to_keep = []
         for i_file, fba_file in enumerate(fba_files):
             fibassign, header = fits.getdata(fba_file, header=True)
-            tileid = header['TILEID'] 
+            tileid = int(header['TILEID'])
             if tileid in footprint['TILEID']:
                 print(tileid, 'in list', zcat_footprint_filename)
                 print('keeping {}'.format(fba_file))
@@ -306,7 +316,7 @@ os.makedirs('targets', exist_ok=True)
 os.makedirs('footprint', exist_ok=True)
 
 print("Preparing tiles")
-prepare_tiles()
+#prepare_tiles()
 
 initial_mtl_file = "targets/subset_dr8_mtl_dark_gray_NGC.fits"
 if not os.path.exists(initial_mtl_file):
@@ -331,10 +341,20 @@ if not os.path.exists(initial_sky_file):
 footprint_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
 pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
 obsconditions = ['DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY']
-#run_strategy(footprint_names, pass_names, obsconditions, 'strategy_A')
+run_strategy(footprint_names, pass_names, obsconditions, 'legacy_strategy_A', initial_mtl_file, initial_sky_file, initial_std_file , legacy=True)
+
+footprint_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
+pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
+obsconditions = ['DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY']
+run_strategy(footprint_names, pass_names, obsconditions, 'strategy_A', initial_mtl_file, initial_sky_file, initial_std_file , legacy=False)
 
 footprint_names = ['gray_dark0_dark1_dark2_dark3', 'dark0_dark1_dark2_dark3', 'dark1_dark2_dark3', 'dark2_dark3', 'full']
 pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
 obsconditions = ['DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY']
-#run_strategy(footprint_names, pass_names, obsconditions, 'strategy_B')
+run_strategy(footprint_names, pass_names, obsconditions, 'legacy_strategy_B', initial_mtl_file, initial_sky_file, initial_std_file , legacy=True)
+
+footprint_names = ['gray_dark0_dark1_dark2_dark3', 'dark0_dark1_dark2_dark3', 'dark1_dark2_dark3', 'dark2_dark3', 'full']
+pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
+obsconditions = ['DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY']
+run_strategy(footprint_names, pass_names, obsconditions, 'strategy_B', initial_mtl_file, initial_sky_file, initial_std_file , legacy=False)
 
