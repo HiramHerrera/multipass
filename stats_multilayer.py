@@ -16,14 +16,18 @@ from desitarget.targetmask import desi_mask, obsconditions
 from collections import Counter
 import subprocess
 
-def consolidate_favail(fba_files):
+def consolidate_favail(fba_files, legacy=False):
     # getting all the targetids of the assigned fibers
     print('reading individual fiberassign files')
     favail = list()
     for i_tile, tile_file in enumerate(fba_files):
         if i_tile%50 ==0:
             print(i_tile)
-        id_favail, header = fits.getdata(tile_file, 'FAVAIL', header=True)
+        if legacy:
+            id_favail, header = fits.getdata(tile_file, 'POTENTIAL_ASSIGNMENTS', header=True)
+        else:
+            id_favail, header = fits.getdata(tile_file, 'FAVAIL', header=True)
+            
         favail.extend(id_favail['TARGETID'])
     return list(set(favail))
 
@@ -68,14 +72,14 @@ def gather_files(strategy_name, pass_names):
         os.system('cp -v {}/fiberassign_{}/tile*.fits {}/fiberassign_full'.format(strategy_name, p_name, strategy_name))
 
 
-def compute_efficiency(strategy_name, pass_names, targets_file, truth_file, myzcat_filename):
+def compute_efficiency(strategy_name, pass_names, targets_file, truth_file, myzcat_filename, legacy=False):
     gather_files(strategy_name, pass_names)
     zcat_file = '{}/zcat/{}_zcat.fits'.format(strategy_name, pass_names[-1])
     fba_path = '{}/fiberassign_full/tile-*fits'.format(strategy_name)
     
     print('Consolidating info from {}'.format(fba_path))
     fba_files= glob.glob(fba_path)
-    favail = consolidate_favail(fba_files)
+    favail = consolidate_favail(fba_files, legacy=legacy)
     
     print('reading zcat', zcat_file)
     zcat = Table.read(zcat_file)
@@ -122,10 +126,10 @@ targets_file =  "targets/subset_dr8_mtl_dark_gray_NGC.fits"
 truth_file   =  "targets/subset_truth_dr8_mtl_dark_gray_NGC.fits"
 
 myzcat_file = "myzcat_strategy_A.fits"
-eff_A = compute_efficiency('strategy_A', ['gray', 'dark0', 'dark1', 'dark2_dark3'], targets_file, truth_file, myzcat_file)
+eff_A = compute_efficiency('legacy_strategy_A', ['gray', 'dark0', 'dark1', 'dark2_dark3'], targets_file, truth_file, myzcat_file, legacy=True)
 
-myzcat_file = "myzcat_strategy_B.fits"
-eff_B = compute_efficiency('strategy_B', ['gray', 'dark0', 'dark1', 'dark2_dark3'], targets_file, truth_file, myzcat_file)
+#myzcat_file = "myzcat_strategy_B.fits"
+#eff_B = compute_efficiency('strategy_B', ['gray', 'dark0', 'dark1', 'dark2_dark3'], targets_file, truth_file, myzcat_file)
 
 print('strategy A', eff_A)
-print('strategy B', eff_B)
+#print('strategy B', eff_B)
