@@ -16,7 +16,7 @@ from desitarget.targetmask import desi_mask, obsconditions
 from collections import Counter
 import subprocess
 
-def ra_dec_subset(data, ra_min=130, ra_max=180, dec_min=-10, dec_max=40):
+def ra_dec_subset(data, ra_min=130, ra_max=150, dec_min=-10, dec_max=10):
     subset_ii = (data['RA']>ra_min) & (data['RA']<ra_max)
     subset_ii &= (data['DEC']>dec_min) & (data['DEC']<dec_max)
     return subset_ii
@@ -105,11 +105,11 @@ def write_initial_mtl_file(initial_mtl_file):
     target_files.sort()
     
     data = fitsio.FITS(target_files[0], 'r')
-    target_data = data[1].read(columns=['TARGETID', 'DESI_TARGET', 'MWS_TARGET', 'BGS_TARGET', 'SUBPRIORITY', 'NUMOBS_INIT', 'PRIORITY_INIT', 'RA', 'DEC', 'HPXPIXEL'])
+    target_data = data[1].read(columns=['TARGETID', 'DESI_TARGET', 'MWS_TARGET', 'BGS_TARGET', 'SUBPRIORITY', 'NUMOBS_INIT', 'PRIORITY_INIT', 'RA', 'DEC', 'HPXPIXEL', 'BRICKNAME'])
     data.close()
     for i, i_name in enumerate(target_files[1:]):
         data = fitsio.FITS(i_name, 'r')
-        tmp_data = data[1].read(columns=['TARGETID', 'DESI_TARGET', 'MWS_TARGET', 'BGS_TARGET', 'SUBPRIORITY', 'NUMOBS_INIT', 'PRIORITY_INIT', 'RA', 'DEC', 'HPXPIXEL'])
+        tmp_data = data[1].read(columns=['TARGETID', 'DESI_TARGET', 'MWS_TARGET', 'BGS_TARGET', 'SUBPRIORITY', 'NUMOBS_INIT', 'PRIORITY_INIT', 'RA', 'DEC', 'HPXPIXEL', 'BRICKNAME'])
         target_data = np.hstack((target_data, tmp_data))
         data.close()
         print('reading file', i, len(target_files), len(tmp_data))
@@ -127,6 +127,14 @@ def write_initial_mtl_file(initial_mtl_file):
     mtl_data = Table.read(mtl_file)
     subset_ii = ra_dec_subset(mtl_data)
     mtl_data[subset_ii].write(initial_mtl_file, overwrite=True)
+
+def write_initial_std_file(initial_mtl_file, initial_std_file):
+    mtl_data = Table.read(initial_mtl_file)
+    std_mask = desi_mask.STD_FAINT | desi_mask.STD_WD | desi_mask.STD_BRIGHT
+    print('STDMASK', std_mask)
+    std_ii = (mtl_data['DESI_TARGET'] & std_mask)!=0
+    print(len(std_ii), np.count_nonzero(std_ii))
+    mtl_data[std_ii].write(initial_std_file, overwrite=True)
 
 def write_initial_sky_file(initial_sky_file):
     sky_data = Table.read("/project/projectdirs/desi/target/catalogs/dr8/0.31.0/skies/skies-dr8-0.31.0.fits")
@@ -305,6 +313,11 @@ if not os.path.exists(initial_mtl_file):
     print("Preparing MTL file")
     write_initial_mtl_file(initial_mtl_file)
         
+initial_std_file = "targets/subset_dr8_std.fits"
+if not os.path.exists(initial_std_file):
+    print("Preparing the inital std file")
+    write_initial_std_file(initial_mtl_file, initial_std_file)
+    
 initial_truth_file = "targets/subset_truth_dr8_mtl_dark_gray_NGC.fits"
 if not os.path.exists(initial_truth_file):
     print("Preparing Truth File")
@@ -318,10 +331,10 @@ if not os.path.exists(initial_sky_file):
 footprint_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
 pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
 obsconditions = ['DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY']
-run_strategy(footprint_names, pass_names, obsconditions, 'strategy_A')
+#run_strategy(footprint_names, pass_names, obsconditions, 'strategy_A')
 
 footprint_names = ['gray_dark0_dark1_dark2_dark3', 'dark0_dark1_dark2_dark3', 'dark1_dark2_dark3', 'dark2_dark3', 'full']
 pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
 obsconditions = ['DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY']
-run_strategy(footprint_names, pass_names, obsconditions, 'strategy_B')
+#run_strategy(footprint_names, pass_names, obsconditions, 'strategy_B')
 
