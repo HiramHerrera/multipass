@@ -125,24 +125,24 @@ def compute_efficiency(strategy_name, pass_names, targets_file, truth_file, myzc
 targets_file =  "targets/subset_dr8_mtl_dark_gray_NGC.fits"
 truth_file   =  "targets/subset_truth_dr8_mtl_dark_gray_NGC.fits"
 
-myzcat_file = "myzcat_legacy_strategy_A.fits"
-eff_leg_A = compute_efficiency('legacy_strategy_A', ['gray', 'dark0', 'dark1', 'dark2_dark3'], targets_file, truth_file, myzcat_file, legacy=True)
+myzcat_file = "myzcat_legacy_noimprove_strategy_A.fits"
+#eff_leg_A = compute_efficiency('legacy_noimprove_strategy_A', ['gray', 'dark0', 'dark1', 'dark2_dark3'], targets_file, truth_file, myzcat_file, legacy=True)
 
-myzcat_file = "myzcat_legacy_strategy_B.fits"
-eff_leg_B = compute_efficiency('legacy_strategy_B', ['gray', 'dark0', 'dark1', 'dark2_dark3'], targets_file, truth_file, myzcat_file, legacy=True)
+myzcat_file = "myzcat_legacy_noimprove_strategy_B.fits"
+eff_leg_B = compute_efficiency('legacy_noimprove_strategy_B', ['gray', 'dark0', 'dark1', 'dark2_dark3'], targets_file, truth_file, myzcat_file, legacy=True)
 
-myzcat_file = "myzcat_strategy_A.fits"
-eff_A = compute_efficiency('strategy_A', ['gray', 'dark0', 'dark1', 'dark2_dark3'], targets_file, truth_file, myzcat_file, legacy=False)
+#myzcat_file = "myzcat_strategy_A.fits"
+#eff_A = compute_efficiency('strategy_A', ['gray', 'dark0', 'dark1', 'dark2_dark3'], targets_file, truth_file, myzcat_file, legacy=False)
 
-myzcat_file = "myzcat_strategy_B.fits"
-eff_B = compute_efficiency('strategy_B', ['gray', 'dark0', 'dark1', 'dark2_dark3'], targets_file, truth_file, myzcat_file, legacy=False)
+#myzcat_file = "myzcat_strategy_B.fits"
+#eff_B = compute_efficiency('strategy_B', ['gray', 'dark0', 'dark1', 'dark2_dark3'], targets_file, truth_file, myzcat_file, legacy=False)
 
-print('legacy strategy A', eff_leg_A)
+#print('legacy noimprove strategy A', eff_leg_A)
 
-print('legacy strategy B', eff_leg_B)
+print('legacy noimprove strategy B', eff_leg_B)
 
-print('strategy A', eff_A)
+#print('strategy A', eff_A)
 
-print('strategy B', eff_B)
+#print('strategy B', eff_B)
 
 #print('strategy B', eff_B)

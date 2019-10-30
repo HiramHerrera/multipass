@@ -224,6 +224,10 @@ def prepare_tiles():
     vstack([footprint['dark0'], footprint['dark1'], footprint['dark2'], footprint['dark3']]).write('footprint/subset_dark0_dark1_dark2_dark3.fits', overwrite=True)
     vstack([footprint['gray'], footprint['dark0'], footprint['dark1'], footprint['dark2'], footprint['dark3']]).write('footprint/subset_gray_dark0_dark1_dark2_dark3.fits', overwrite=True)
 
+    
+def prepare_tiles_from_surveysim():
+    return 0
+    
 def consolidate_favail(fba_files):
     # getting all the targetids of the assigned fibers
     print('reading individual fiberassign files')
@@ -235,7 +239,8 @@ def consolidate_favail(fba_files):
         favail.extend(id_favail['TARGETID'])
     return list(set(favail))
     
-def run_strategy(footprint_names, pass_names, obsconditions, strategy, initial_mtl_file, initial_sky_file, initial_std_file, legacy=None):
+def run_strategy(footprint_names, pass_names, obsconditions, strategy, initial_mtl_file, initial_sky_file, initial_std_file, 
+                 fiberassign_script='fiberassign_legacy', legacy=None):
     for i_pass in range(4):
     
         footprint_name = footprint_names[i_pass]
@@ -263,7 +268,7 @@ def run_strategy(footprint_names, pass_names, obsconditions, strategy, initial_m
         # Run fiberassign
  
         if legacy==True:
-            cmd = 'fiberassign_legacy --mtl {} --sky {} --std {}'.format(mtl_filename, initial_sky_file, initial_std_file)
+            cmd = '{} --mtl {} --sky {} --std {}'.format(fiberassign_script, mtl_filename, initial_sky_file, initial_std_file)
             cmd += ' --footprint {} --outdir {} --overwrite '.format(assign_footprint_filename, fiberassign_dir)
             cmd += ' --fibstatusfile fiberstatus.ecsv --starmask 60129542144'
         if legacy==False:
@@ -316,7 +321,7 @@ os.makedirs('targets', exist_ok=True)
 os.makedirs('footprint', exist_ok=True)
 
 print("Preparing tiles")
-#prepare_tiles()
+prepare_tiles()
 
 initial_mtl_file = "targets/subset_dr8_mtl_dark_gray_NGC.fits"
 if not os.path.exists(initial_mtl_file):
@@ -341,20 +346,23 @@ if not os.path.exists(initial_sky_file):
 footprint_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
 pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
 obsconditions = ['DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY']
-run_strategy(footprint_names, pass_names, obsconditions, 'legacy_strategy_A', initial_mtl_file, initial_sky_file, initial_std_file , legacy=True)
+#run_strategy(footprint_names, pass_names, obsconditions, 'legacy_noimprove_strategy_A', 
+#            initial_mtl_file, initial_sky_file, initial_std_file , legacy=True, 
+#            fiberassign_script='fiberassign_legacy_noimprove')
+
+footprint_names = ['gray_dark0_dark1_dark2_dark3', 'dark0_dark1_dark2_dark3', 'dark1_dark2_dark3', 'dark2_dark3', 'full']
+pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
+obsconditions = ['DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY']
+run_strategy(footprint_names, pass_names, obsconditions, 'legacy_noimprove_strategy_B', initial_mtl_file, initial_sky_file, initial_std_file,
+             fiberassign_script='fiberassign_legacy_noimprove', legacy=True)
 
 footprint_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
 pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
 obsconditions = ['DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY']
-run_strategy(footprint_names, pass_names, obsconditions, 'strategy_A', initial_mtl_file, initial_sky_file, initial_std_file , legacy=False)
+#run_strategy(footprint_names, pass_names, obsconditions, 'strategy_A', initial_mtl_file, initial_sky_file, initial_std_file , legacy=False)
 
 footprint_names = ['gray_dark0_dark1_dark2_dark3', 'dark0_dark1_dark2_dark3', 'dark1_dark2_dark3', 'dark2_dark3', 'full']
 pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
 obsconditions = ['DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY']
-run_strategy(footprint_names, pass_names, obsconditions, 'legacy_strategy_B', initial_mtl_file, initial_sky_file, initial_std_file , legacy=True)
-
-footprint_names = ['gray_dark0_dark1_dark2_dark3', 'dark0_dark1_dark2_dark3', 'dark1_dark2_dark3', 'dark2_dark3', 'full']
-pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
-obsconditions = ['DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY']
-run_strategy(footprint_names, pass_names, obsconditions, 'strategy_B', initial_mtl_file, initial_sky_file, initial_std_file , legacy=False)
+#run_strategy(footprint_names, pass_names, obsconditions, 'strategy_B', initial_mtl_file, initial_sky_file, initial_std_file , legacy=False)
 
