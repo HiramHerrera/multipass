@@ -224,9 +224,42 @@ def prepare_tiles():
     vstack([footprint['dark0'], footprint['dark1'], footprint['dark2'], footprint['dark3']]).write('footprint/subset_dark0_dark1_dark2_dark3.fits', overwrite=True)
     vstack([footprint['gray'], footprint['dark0'], footprint['dark1'], footprint['dark2'], footprint['dark3']]).write('footprint/subset_gray_dark0_dark1_dark2_dark3.fits', overwrite=True)
 
+def create_multi_footprint(surveysim_path, footprint_path, cadence=28):
     
-def prepare_tiles_from_surveysim():
-    return 0
+    # load exposures and tiles
+    exposures = Table.read(os.path.join(sim_path,'exposures.fits'), hdu=1)
+    tiles = desimodel.io.load_tiles()
+    
+    # select tiles to be dark+gray in a special region of the sky
+    ii_subset = ra_dec_subset(tiles) 
+    tiles = tiles[ii_subset]
+    not_bright = tiles['PROGRAM']!='BRIGHT'
+    dark_gray_tiles = tiles[not_bright]
+    
+    # create a "month" of "cadence" days.
+    exposures['MONTH'] = np.int_((exposures['MJD']-exposures['MJD'].min())/cadence)
+   
+    all_tiles_in_month = {}
+    month_id = list(set(exposures['MONTH']))
+    month_id.sort()
+    print(month_id)
+    subsetnames = []
+    for month in month_id:
+        # gather all tiles available in a month from the surveysim file
+        all_tiles_in_month[month] = list(set(exposures['TILEID'][exposures['MONTH']==month]))
+        # check that the available tiles are in the subset of tiles we are interested in
+        ii = np.in1d(dark_gray_tiles['TILEID'], all_tiles_in_month[month])
+        n_tiles = np.count_nonzero(ii)
+        print(month, len(month_id), n_tiles)
+        # write those tiles in a single gile
+        if n_tiles > 0:
+            table_tiles = Table(dark_gray_tiles[ii])
+            subsetname = '{:02d}'.format(month)
+            tilefile = os.path.join(footprint_path, 'subset_{}.fits'.format(subsetname))
+            subsetnames.append(subsetname)
+            print('writing to', tilefile)
+            table_tiles.write(tilefile, overwrite=True)
+    return subsetnames
     
 def consolidate_favail(fba_files):
     # getting all the targetids of the assigned fibers
@@ -320,9 +353,6 @@ def run_strategy(footprint_names, pass_names, obsconditions, strategy, initial_m
 os.makedirs('targets', exist_ok=True)
 os.makedirs('footprint', exist_ok=True)
 
-print("Preparing tiles")
-prepare_tiles()
-
 initial_mtl_file = "targets/subset_dr8_mtl_dark_gray_NGC.fits"
 if not os.path.exists(initial_mtl_file):
     print("Preparing MTL file")
@@ -343,26 +373,33 @@ if not os.path.exists(initial_sky_file):
     print("Preparing the inital sky file")
     write_initial_sky_file(initial_sky_file)
         
-footprint_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
-pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
-obsconditions = ['DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY']
-#run_strategy(footprint_names, pass_names, obsconditions, 'legacy_noimprove_strategy_A', 
-#            initial_mtl_file, initial_sky_file, initial_std_file , legacy=True, 
-#            fiberassign_script='fiberassign_legacy_noimprove')
+#print("Preparing tiles")
+sim_path = "/project/projectdirs/desi/datachallenge/surveysim2018/weather/081"
+footprint_path = "./footprint"
+subsetnames = create_multi_footprint(sim_path, footprint_path, cadence=28)
 
-footprint_names = ['gray_dark0_dark1_dark2_dark3', 'dark0_dark1_dark2_dark3', 'dark1_dark2_dark3', 'dark2_dark3', 'full']
-pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
-obsconditions = ['DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY']
-run_strategy(footprint_names, pass_names, obsconditions, 'legacy_noimprove_strategy_B', initial_mtl_file, initial_sky_file, initial_std_file,
-             fiberassign_script='fiberassign_legacy_noimprove', legacy=True)
+#prepare_tiles()
 
-footprint_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
-pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
-obsconditions = ['DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY']
+footprint_names = subsetnames + ['full']
+pass_names = subsetnames  + ['full']
+obsconditions = ['DARK|GRAY'] * len(pass_names)
+run_strategy(footprint_names, pass_names, obsconditions, 'monthly_strategy_A', 
+            initial_mtl_file, initial_sky_file, initial_std_file , legacy=False, 
+            fiberassign_script='fiberassign')
+
+#footprint_names = ['gray_dark0_dark1_dark2_dark3', 'dark0_dark1_dark2_dark3', 'dark1_dark2_dark3', 'dark2_dark3', 'full']
+#pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
+#obsconditions = ['DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY']
+#run_strategy(footprint_names, pass_names, obsconditions, 'legacy_noimprove_strategy_B', initial_mtl_file, initial_sky_file, initial_std_file,
+#             fiberassign_script='fiberassign_legacy_noimprove', legacy=True)
+
+#footprint_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
+#pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
+#obsconditions = ['DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY']
 #run_strategy(footprint_names, pass_names, obsconditions, 'strategy_A', initial_mtl_file, initial_sky_file, initial_std_file , legacy=False)
 
-footprint_names = ['gray_dark0_dark1_dark2_dark3', 'dark0_dark1_dark2_dark3', 'dark1_dark2_dark3', 'dark2_dark3', 'full']
-pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
-obsconditions = ['DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY']
+#footprint_names = ['gray_dark0_dark1_dark2_dark3', 'dark0_dark1_dark2_dark3', 'dark1_dark2_dark3', 'dark2_dark3', 'full']
+#pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
+#obsconditions = ['DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY']
 #run_strategy(footprint_names, pass_names, obsconditions, 'strategy_B', initial_mtl_file, initial_sky_file, initial_std_file , legacy=False)
 
