@@ -74,7 +74,7 @@ def gather_files(strategy_name, pass_names):
 
 def compute_efficiency(strategy_name, pass_names, targets_file, truth_file, myzcat_filename, legacy=False):
     gather_files(strategy_name, pass_names)
-    zcat_file = '{}/zcat/{}_zcat.fits'.format(strategy_name, pass_names[-1])
+    zcat_file = '{}/zcat/month-{}_zcat.fits'.format(strategy_name, pass_names[-1])
     fba_path = '{}/fiberassign_full/fiberassign-*fits'.format(strategy_name)
     
     print('Consolidating info from {}'.format(fba_path))
@@ -122,8 +122,8 @@ def compute_efficiency(strategy_name, pass_names, targets_file, truth_file, myzc
     return {'eff_qso':eff_qso, 'eff_lrg':eff_lrg, 'eff_elg':eff_elg}
 
 
-targets_file =  "targets/subset_dr8_mtl_dark_gray_NGC.fits"
-truth_file   =  "targets/subset_truth_dr8_mtl_dark_gray_NGC.fits"
+#targets_file =  "targets/subset_dr8_mtl_dark_gray_NGC.fits"
+#truth_file   =  "targets/subset_truth_dr8_mtl_dark_gray_NGC.fits"
 
 #myzcat_file = "myzcat_legacy_noimprove_strategy_A.fits"
 #eff_leg_A = compute_efficiency('legacy_noimprove_strategy_A', ['gray', 'dark0', 'dark1', 'dark2_dark3'], targets_file, truth_file, myzcat_file, legacy=True)
@@ -131,18 +131,18 @@ truth_file   =  "targets/subset_truth_dr8_mtl_dark_gray_NGC.fits"
 #myzcat_file = "myzcat_legacy_noimprove_strategy_B.fits"
 #eff_leg_B = compute_efficiency('legacy_noimprove_strategy_B', ['gray', 'dark0', 'dark1', 'dark2_dark3'], targets_file, truth_file, myzcat_file, legacy=True)
 
-myzcat_file = "myzcat_strategy_A.fits"
-eff_A = compute_efficiency('strategy_A', ['gray', 'dark0', 'dark1', 'dark2_dark3'], targets_file, truth_file, myzcat_file, legacy=False)
+#myzcat_file = "myzcat_strategy_A.fits"
+#eff_A = compute_efficiency('strategy_A', ['gray', 'dark0', 'dark1', 'dark2_dark3'], targets_file, truth_file, myzcat_file, legacy=False)
 
-myzcat_file = "myzcat_strategy_B.fits"
-eff_B = compute_efficiency('strategy_B', ['gray', 'dark0', 'dark1', 'dark2_dark3'], targets_file, truth_file, myzcat_file, legacy=False)
+#myzcat_file = "myzcat_strategy_B.fits"
+#eff_B = compute_efficiency('strategy_B', ['gray', 'dark0', 'dark1', 'dark2_dark3'], targets_file, truth_file, myzcat_file, legacy=False)
 
 #print('legacy noimprove strategy A', eff_leg_A)
 
 #print('legacy noimprove strategy B', eff_leg_B)
 
-print('strategy A', eff_A)
+#print('strategy A', eff_A)
 
-print('strategy B', eff_B)
+#print('strategy B', eff_B)
 
 #print('strategy B', eff_B)

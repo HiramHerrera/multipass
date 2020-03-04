@@ -1,20 +1,38 @@
+#!/usr/bin/env python
+
 from astropy.table import Table
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
-import glob
-import os
+import os, glob, argparse, subprocess, shutil
+import json
+import healpy
 import fitsio
 import desimodel.io
 import desitarget.mtl
 import desisim.quickcat
 from astropy.io import fits
 from astropy.table import Table, Column, vstack
-import json
-import shutil
-import healpy
 from desitarget.targetmask import desi_mask, obsconditions
 from collections import Counter
-import subprocess
+
+from stats_multilayer import compute_efficiency
+
+parser = argparse.ArgumentParser()
+# Requiered arguments
+parser.add_argument("--mtl",help="input targets (FITS file)",type=str, required=True)
+parser.add_argument("--sky",help="input sky positions (FITS file)",type=str, required=True)
+parser.add_argument("--truth",help="input targets truth (FITS file)",type=str, required=True)
+
+# Optional argument for legacy
+parser.add_argument("--stdstar",help="input std stars (FITS file)",type=str, default=None, required=False)
+
+# Optional arguments for timed fiber assign
+parser.add_argument("--expfile",type=str,help="input exposures file path (FITS file)", required=False)
+parser.add_argument("--cadence",help="Month cadence for multi_footprint generation.",type=int, default=28,required=False)
+parser.add_argument("--zcat",help="Output z catalog file name.",type=str, default='zcat.fits',required=False)
+
+args = parser.parse_args()
 
 def ra_dec_subset(data, ra_min=130, ra_max=180, dec_min=-10, dec_max=40):
     subset_ii = (data['RA']>ra_min) & (data['RA']<ra_max)
@@ -224,15 +242,15 @@ def prepare_tiles():
     vstack([footprint['dark0'], footprint['dark1'], footprint['dark2'], footprint['dark3']]).write('footprint/subset_dark0_dark1_dark2_dark3.fits', overwrite=True)
     vstack([footprint['gray'], footprint['dark0'], footprint['dark1'], footprint['dark2'], footprint['dark3']]).write('footprint/subset_gray_dark0_dark1_dark2_dark3.fits', overwrite=True)
 
-def create_multi_footprint(surveysim_path, footprint_path, cadence=28):
+def create_multi_footprint(expfile, cadence=28):
     
     # load exposures and tiles
-    exposures = Table.read(os.path.join(sim_path,'exposures.fits'), hdu=1)
+    exposures = Table.read(expfile, hdu=1)
     tiles = desimodel.io.load_tiles()
     
     # select tiles to be dark+gray in a special region of the sky
-    ii_subset = ra_dec_subset(tiles) 
-    tiles = tiles[ii_subset]
+    #ii_subset = ra_dec_subset(tiles) 
+    #tiles = tiles[ii_subset]
     not_bright = tiles['PROGRAM']!='BRIGHT'
     dark_gray_tiles = tiles[not_bright]
     
@@ -242,9 +260,14 @@ def create_multi_footprint(surveysim_path, footprint_path, cadence=28):
     all_tiles_in_month = {}
     month_id = list(set(exposures['MONTH']))
     month_id.sort()
-    print(month_id)
+    #print(month_id)
     subsetnames = []
     for month in month_id:
+        subsetname = '{:02d}'.format(month)
+        tilefile = 'footprint/month_{}.fits'.format(subsetname)
+        if os.path.exists(tilefile):
+            subsetnames.append(subsetname)
+            continue
         # gather all tiles available in a month from the surveysim file
         all_tiles_in_month[month] = list(set(exposures['TILEID'][exposures['MONTH']==month]))
         # check that the available tiles are in the subset of tiles we are interested in
@@ -254,11 +277,11 @@ def create_multi_footprint(surveysim_path, footprint_path, cadence=28):
         # write those tiles in a single gile
         if n_tiles > 0:
             table_tiles = Table(dark_gray_tiles[ii])
-            subsetname = '{:02d}'.format(month)
-            tilefile = os.path.join(footprint_path, 'subset_{}.fits'.format(subsetname))
             subsetnames.append(subsetname)
             print('writing to', tilefile)
             table_tiles.write(tilefile, overwrite=True)
+            del table_tiles, 
+    del dark_gray_tiles, tiles, exposures        
     return subsetnames
     
 def consolidate_favail(fba_files):
@@ -286,13 +309,13 @@ def run_strategy(footprint_names, pass_names, obsconditions, strategy, initial_m
         os.makedirs('{}/zcat'.format(strategy), exist_ok=True)
 
     
-        assign_footprint_filename = 'footprint/subset_{}.fits'.format(footprint_name)
-        zcat_footprint_filename = 'footprint/subset_{}.fits'.format(pass_name)
+        assign_footprint_filename = 'footprint/month_{}.fits'.format(footprint_name)
+        zcat_footprint_filename = 'footprint/month_{}.fits'.format(pass_name)
         fiberassign_dir = '{}/fiberassign_{}/'.format(strategy, pass_name)
-        mtl_filename = '{}/targets/{}_subset_dr8_mtl_dark_gray_NGC.fits'.format(strategy, pass_name)
-        new_mtl_filename = '{}/targets/{}_subset_dr8_mtl_dark_gray_NGC.fits'.format(strategy, new_pass_name)
-        old_zcat_filename = '{}/zcat/{}_zcat.fits'.format(strategy, old_pass_name)
-        zcat_filename = '{}/zcat/{}_zcat.fits'.format(strategy, pass_name)
+        mtl_filename = '{}/targets/mtl-month_{}.fits'.format(strategy, pass_name)
+        new_mtl_filename = '{}/targets/mtl-month_{}.fits'.format(strategy, new_pass_name)
+        old_zcat_filename = '{}/zcat/month-{}_zcat.fits'.format(strategy, old_pass_name)
+        zcat_filename = '{}/zcat/month-{}_zcat.fits'.format(strategy, pass_name)
     
         if i_pass == 0:
             shutil.copyfile(initial_mtl_file, mtl_filename)
@@ -305,11 +328,11 @@ def run_strategy(footprint_names, pass_names, obsconditions, strategy, initial_m
             cmd += ' --footprint {} --outdir {} --overwrite '.format(assign_footprint_filename, fiberassign_dir)
             cmd += ' --fibstatusfile fiberstatus.ecsv --starmask 60129542144'
         if legacy==False:
-            cmd = 'fiberassign --mtl {} --sky targets/subset_dr8_sky.fits '.format(mtl_filename)
+            cmd = 'fiberassign --mtl {} --sky {} '.format(mtl_filename,initial_sky_file)
             cmd +=' --footprint {} --outdir {} --overwrite'.format(assign_footprint_filename, fiberassign_dir)
             
         print(cmd)
-        os.system(cmd)
+        subprocess.check_call(cmd.split())
     
         # Gather fiberassign files
         fba_files = np.sort(glob.glob(os.path.join(fiberassign_dir,"fiberassign*.fits")))
@@ -343,49 +366,55 @@ def run_strategy(footprint_names, pass_names, obsconditions, strategy, initial_m
             zcat = desisim.quickcat.quickcat(fba_files, targets, truth, perfect=True)
         else:
             old_zcat = Table.read(old_zcat_filename)
-            zcat = desisim.quickcat.quickcat(fba_files, targets, truth, zcat=old_zcat, perfect=True)        
-    
+            zcat = desisim.quickcat.quickcat(fba_files, targets, truth, zcat=old_zcat, perfect=True) 
+            os.remove(old_zcat_filename)
+        del truth
+        
         zcat.write(zcat_filename, overwrite=True)
         mtl = desitarget.mtl.make_mtl(targets, obsconditions[i_pass], zcat=zcat)
+        del targets,zcat
+        
         mtl.write(new_mtl_filename, overwrite=True)
-
+        os.remove(mtl_filename)
+        del mtl
         
 os.makedirs('targets', exist_ok=True)
 os.makedirs('footprint', exist_ok=True)
 
-initial_mtl_file = "targets/subset_dr8_mtl_dark_gray_NGC.fits"
-if not os.path.exists(initial_mtl_file):
-    print("Preparing MTL file")
-    write_initial_mtl_file(initial_mtl_file)
-        
-initial_std_file = "targets/subset_dr8_std.fits"
-if not os.path.exists(initial_std_file):
-    print("Preparing the inital std file")
-    write_initial_std_file(initial_mtl_file, initial_std_file)
+initial_mtl_file = args.mtl
+#if not os.path.exists(initial_mtl_file):
+#    print("Preparing MTL file")
+#    write_initial_mtl_file(initial_mtl_file)
+       
+initial_std_file = args.stdstar
+legacy=False
+if args.stdstar:
+    legacy=True
+#if not os.path.exists(initial_std_file):
+#    print("Preparing the inital std file")
+#    write_initial_std_file(initial_mtl_file, initial_std_file)
     
-initial_truth_file = "targets/subset_truth_dr8_mtl_dark_gray_NGC.fits"
-if not os.path.exists(initial_truth_file):
-    print("Preparing Truth File")
-    write_initial_truth_file(initial_truth_file)
+initial_truth_file = args.truth
+#if not os.path.exists(initial_truth_file):
+#    print("Preparing Truth File")
+#    write_initial_truth_file(initial_truth_file)
 
-initial_sky_file = "targets/subset_dr8_sky.fits"
-if not os.path.exists(initial_sky_file):
-    print("Preparing the inital sky file")
-    write_initial_sky_file(initial_sky_file)
+initial_sky_file = args.sky
+#if not os.path.exists(initial_sky_file):
+#    print("Preparing the inital sky file")
+#    write_initial_sky_file(initial_sky_file)
         
 #print("Preparing tiles")
-sim_path = "/project/projectdirs/desi/datachallenge/surveysim2018/weather/081"
-footprint_path = "./footprint"
-#subsetnames = create_multi_footprint(sim_path, footprint_path, cadence=180)
+expfile = args.expfile
+subsetnames = create_multi_footprint(expfile, cadence=args.cadence)
 
 #prepare_tiles()
-
-#footprint_names = subsetnames + ['full']
-#pass_names = subsetnames  + ['full']
-#obsconditions = ['DARK|GRAY'] * len(pass_names)
-#run_strategy(footprint_names, pass_names, obsconditions, 'monthly_strategy_A_updated_fibassign_files', 
-#            initial_mtl_file, initial_sky_file, initial_std_file , legacy=False, 
-#            fiberassign_script='fiberassign')
+footprint_names = subsetnames + ['full']
+pass_names = subsetnames  + ['full']
+obsconditions = ['DARK|GRAY'] * len(pass_names)
+run_strategy(footprint_names, pass_names, obsconditions, 'monthly_multipass', 
+            initial_mtl_file, initial_sky_file, initial_std_file , legacy=legacy, 
+            fiberassign_script='fiberassign')
 
 #footprint_names = ['gray_dark0_dark1_dark2_dark3', 'dark0_dark1_dark2_dark3', 'dark1_dark2_dark3', 'dark2_dark3', 'full']
 #pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
@@ -393,13 +422,14 @@ footprint_path = "./footprint"
 #run_strategy(footprint_names, pass_names, obsconditions, 'legacy_noimprove_strategy_B', initial_mtl_file, initial_sky_file, initial_std_file,
 #             fiberassign_script='fiberassign_legacy_noimprove', legacy=True)
 
-footprint_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
-pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
-obsconditions = ['DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY']
-run_strategy(footprint_names, pass_names, obsconditions, 'strategy_A', initial_mtl_file, initial_sky_file, initial_std_file , legacy=False)
+#footprint_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
+#pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
+#obsconditions = ['DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY']
+#run_strategy(footprint_names, pass_names, obsconditions, 'strategy_A', initial_mtl_file, initial_sky_file, initial_std_file , legacy=False)
 
-footprint_names = ['gray_dark0_dark1_dark2_dark3', 'dark0_dark1_dark2_dark3', 'dark1_dark2_dark3', 'dark2_dark3', 'full']
-pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
-obsconditions = ['DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY']
-run_strategy(footprint_names, pass_names, obsconditions, 'strategy_B', initial_mtl_file, initial_sky_file, initial_std_file , legacy=False)
-
+#footprint_names = ['gray_dark0_dark1_dark2_dark3', 'dark0_dark1_dark2_dark3', 'dark1_dark2_dark3', 'dark2_dark3', 'full']
+#pass_names = ['gray', 'dark0', 'dark1', 'dark2_dark3', 'full']
+#obsconditions = ['DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY']
+#run_strategy(footprint_names, pass_names, obsconditions, 'strategy_B', initial_mtl_file, initial_sky_file, initial_std_file , legacy=False)
+myzcat_file = args.zcat
+eff = compute_efficiency('monthly_multipass', pass_names[:-1], initial_mtl_file, initial_truth_file, myzcat_file, legacy=legacy)
