@@ -19,7 +19,7 @@ from collections import Counter
 from stats_multilayer import compute_efficiency
 
 parser = argparse.ArgumentParser()
-# Requiered arguments
+# Required arguments
 parser.add_argument("--mtl",help="input targets (FITS file)",type=str, required=True)
 parser.add_argument("--sky",help="input sky positions (FITS file)",type=str, required=True)
 parser.add_argument("--truth",help="input targets truth (FITS file)",type=str, required=True)
@@ -264,7 +264,7 @@ def create_multi_footprint(expfile, cadence=28):
     subsetnames = []
     for month in month_id:
         subsetname = '{:02d}'.format(month)
-        tilefile = 'footprint/month_{}.fits'.format(subsetname)
+        tilefile = 'footprint/footprint-{}.fits'.format(subsetname)
         if os.path.exists(tilefile):
             subsetnames.append(subsetname)
             continue
@@ -303,20 +303,25 @@ def run_strategy(footprint_names, pass_names, obsconditions, strategy, initial_m
         old_pass_name = pass_names[i_pass-1]
         pass_name = pass_names[i_pass]
         new_pass_name = pass_names[i_pass+1]
-    
+        
         os.makedirs('{}/fiberassign_{}'.format(strategy, pass_name), exist_ok=True)
         os.makedirs('{}/targets'.format(strategy), exist_ok=True)
         os.makedirs('{}/zcat'.format(strategy), exist_ok=True)
 
     
-        assign_footprint_filename = 'footprint/month_{}.fits'.format(footprint_name)
-        zcat_footprint_filename = 'footprint/month_{}.fits'.format(pass_name)
+        assign_footprint_filename = 'footprint/footprint-{}.fits'.format(footprint_name)
+        zcat_footprint_filename = 'footprint/footprint-{}.fits'.format(pass_name)
         fiberassign_dir = '{}/fiberassign_{}/'.format(strategy, pass_name)
-        mtl_filename = '{}/targets/mtl-month_{}.fits'.format(strategy, pass_name)
-        new_mtl_filename = '{}/targets/mtl-month_{}.fits'.format(strategy, new_pass_name)
-        old_zcat_filename = '{}/zcat/month-{}_zcat.fits'.format(strategy, old_pass_name)
-        zcat_filename = '{}/zcat/month-{}_zcat.fits'.format(strategy, pass_name)
-    
+        mtl_filename = '{}/targets/mtl-{}.fits'.format(strategy, pass_name)
+        new_mtl_filename = '{}/targets/mtl-{}.fits'.format(strategy, new_pass_name)
+        old_zcat_filename = '{}/zcat/zcat-{}.fits'.format(strategy, old_pass_name)
+        zcat_filename = '{}/zcat/zcat-{}.fits'.format(strategy, pass_name)
+        
+        # Added to resume interrupted runs
+        if os.path.exists(new_mtl_filename) and os.path.exists(zcat_filename):
+            print("Month {} already done, skipping to next".format(pass_name))
+            continue
+            
         if i_pass == 0:
             shutil.copyfile(initial_mtl_file, mtl_filename)
         
@@ -325,7 +330,7 @@ def run_strategy(footprint_names, pass_names, obsconditions, strategy, initial_m
  
         if legacy==True:
             cmd = '{} --mtl {} --sky {} --std {}'.format(fiberassign_script, mtl_filename, initial_sky_file, initial_std_file)
-            cmd += ' --footprint {} --outdir {} --overwrite '.format(assign_footprint_filename, fiberassign_dir)
+            cmd += ' --footprint {} --outdir {} --overwrite'.format(assign_footprint_filename, fiberassign_dir)
             cmd += ' --fibstatusfile fiberstatus.ecsv --starmask 60129542144'
         if legacy==False:
             cmd = 'fiberassign --mtl {} --sky {} '.format(mtl_filename,initial_sky_file)
@@ -338,7 +343,7 @@ def run_strategy(footprint_names, pass_names, obsconditions, strategy, initial_m
         fba_files = np.sort(glob.glob(os.path.join(fiberassign_dir,"fiberassign*.fits")))
 
         # remove tilefiles that are not in the list of tiles to build zcat
-        footprint = Table.read(zcat_footprint_filename)
+        footprint = Table(fitsio.read(zcat_footprint_filename))
         to_keep = []
         for i_file, fba_file in enumerate(fba_files):
             fibassign, header = fits.getdata(fba_file, header=True)
@@ -358,27 +363,26 @@ def run_strategy(footprint_names, pass_names, obsconditions, strategy, initial_m
         print('Files to keep', len(fba_files))
     
         # Read targets and truth
-        targets = Table.read(mtl_filename)
-        truth = Table.read(initial_truth_file)
+        targets = Table(fitsio.read(mtl_filename))
+        truth = Table(fitsio.read(initial_truth_file))
     
         # Compute zcat
         if i_pass==0:
             zcat = desisim.quickcat.quickcat(fba_files, targets, truth, perfect=True)
         else:
-            old_zcat = Table.read(old_zcat_filename)
+            old_zcat = Table(fitsio.read(old_zcat_filename))
             zcat = desisim.quickcat.quickcat(fba_files, targets, truth, zcat=old_zcat, perfect=True) 
-            os.remove(old_zcat_filename)
+            zcat_hdu = fits.convenience.table_to_hdu(zcat)
         del truth
         
-        zcat.write(zcat_filename, overwrite=True)
+        fitsio.write(zcat_filename, np.array(zcat_hdu.data))
         mtl = desitarget.mtl.make_mtl(targets, obsconditions[i_pass], zcat=zcat)
         del targets,zcat
         
-        mtl.write(new_mtl_filename, overwrite=True)
-        os.remove(mtl_filename)
+        mtl_hdu = fits.convenience.table_to_hdu(mtl)
+        fitsio.write(new_mtl_filename, np.array(mtl_hdu.data))
         del mtl
         
-os.makedirs('targets', exist_ok=True)
 os.makedirs('footprint', exist_ok=True)
 
 initial_mtl_file = args.mtl
@@ -406,13 +410,14 @@ initial_sky_file = args.sky
         
 #print("Preparing tiles")
 expfile = args.expfile
+print("Running fiberassign with cadence of {} days".format(args.cadence))
 subsetnames = create_multi_footprint(expfile, cadence=args.cadence)
 
 #prepare_tiles()
 footprint_names = subsetnames + ['full']
 pass_names = subsetnames  + ['full']
 obsconditions = ['DARK|GRAY'] * len(pass_names)
-run_strategy(footprint_names, pass_names, obsconditions, 'monthly_multipass', 
+run_strategy(footprint_names, pass_names, obsconditions, 'cadence_{}'.format(args.cadence), 
             initial_mtl_file, initial_sky_file, initial_std_file , legacy=legacy, 
             fiberassign_script='fiberassign')
 
@@ -432,4 +437,4 @@ run_strategy(footprint_names, pass_names, obsconditions, 'monthly_multipass',
 #obsconditions = ['DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY']
 #run_strategy(footprint_names, pass_names, obsconditions, 'strategy_B', initial_mtl_file, initial_sky_file, initial_std_file , legacy=False)
 myzcat_file = args.zcat
-eff = compute_efficiency('monthly_multipass', pass_names[:-1], initial_mtl_file, initial_truth_file, myzcat_file, legacy=legacy)
+eff = compute_efficiency('cadence_{}'.format(args.cadence), pass_names[:-1], initial_mtl_file, initial_truth_file, myzcat_file, legacy=legacy)

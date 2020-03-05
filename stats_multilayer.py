@@ -74,7 +74,7 @@ def gather_files(strategy_name, pass_names):
 
 def compute_efficiency(strategy_name, pass_names, targets_file, truth_file, myzcat_filename, legacy=False):
     gather_files(strategy_name, pass_names)
-    zcat_file = '{}/zcat/month-{}_zcat.fits'.format(strategy_name, pass_names[-1])
+    zcat_file = '{}/zcat/zcat-{}.fits'.format(strategy_name, pass_names[-1])
     fba_path = '{}/fiberassign_full/fiberassign-*fits'.format(strategy_name)
     
     print('Consolidating info from {}'.format(fba_path))
@@ -82,13 +82,13 @@ def compute_efficiency(strategy_name, pass_names, targets_file, truth_file, myzc
     favail = consolidate_favail(fba_files, legacy=legacy)
     
     print('reading zcat', zcat_file)
-    zcat = Table.read(zcat_file)
+    zcat = Table(fitsio.read(zcat_file))
     
     print('reading targets', targets_file)
-    targets = Table.read(targets_file)
+    targets = Table(fitsio.read(targets_file))
     
     print('reading truth', truth_file)
-    truth = Table.read(truth_file)
+    truth = Table(fitsio.read(truth_file))
 
     print('Sorting files')
     targets.sort(keys='TARGETID')
@@ -111,14 +111,14 @@ def compute_efficiency(strategy_name, pass_names, targets_file, truth_file, myzc
     ii_from_truth = np.in1d(truth['TARGETID'], compiled['TARGETID'])
     compiled['TRUESPECTYPE'] = truth['TRUESPECTYPE'][ii_from_truth]
     compiled['TRUEZ'] = truth['TRUEZ'][ii_from_truth]
-    compiled[['RA', 'DEC', 'TARGETID', 'DESI_TARGET', 'NUMOBS', 'TRUESPECTYPE', 'TRUEZ']].write(myzcat_file, overwrite=True)
+    compiled[['RA', 'DEC', 'TARGETID', 'DESI_TARGET', 'NUMOBS', 'TRUESPECTYPE', 'TRUEZ']].write(myzcat_filename, overwrite=True)
+    del truth
+    #ii = (targets['RA']>140.0) & (targets['RA']<180.0) & (targets['DEC']>10.0) & (targets['DEC']<20)
+    #small_targets = targets[ii]
     
-    ii = (targets['RA']>140.0) & (targets['RA']<180.0) & (targets['DEC']>10.0) & (targets['DEC']<20)
-    small_targets = targets[ii]
-    
-    eff_qso = global_eff(small_targets, favail, zcat, target_class='QSO', zcat_spectype='QSO')
-    eff_lrg = global_eff(small_targets, favail, zcat, target_class='LRG', zcat_spectype='GALAXY')
-    eff_elg = global_eff(small_targets, favail, zcat, target_class='ELG', zcat_spectype='GALAXY')
+    eff_qso = global_eff(targets, favail, zcat, target_class='QSO', zcat_spectype='QSO')
+    eff_lrg = global_eff(targets, favail, zcat, target_class='LRG', zcat_spectype='GALAXY')
+    eff_elg = global_eff(targets, favail, zcat, target_class='ELG', zcat_spectype='GALAXY')
     return {'eff_qso':eff_qso, 'eff_lrg':eff_lrg, 'eff_elg':eff_elg}
 
 
