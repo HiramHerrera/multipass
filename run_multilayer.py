@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 from astropy.table import Table
 import argparse
 import numpy as np
@@ -23,6 +21,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--mtl",help="input targets (FITS file)",type=str, required=True)
 parser.add_argument("--sky",help="input sky positions (FITS file)",type=str, required=True)
 parser.add_argument("--truth",help="input targets truth (FITS file)",type=str, required=True)
+parser.add_argument("--outdir",help="output directory",type=str, required=False,default='./')
 
 # Optional argument for legacy
 parser.add_argument("--stdstar",help="input std stars (FITS file)",type=str, default=None, required=False)
@@ -139,12 +138,12 @@ def write_initial_mtl_file(initial_mtl_file):
 
     print("Writing nothern cap")
     mtl_file = "targets/dr8_mtl_dark_gray_NGC.fits"
-    full_mtl[(ii_mtl_dark | ii_mtl_gray) & ii_north].write(mtl_file, overwrite=True)
+    full_mtl[(ii_mtl_dark | ii_mtl_gray) & ii_north].write(os.path.join(args.outdir,mtl_file), overwrite=True)
     
     print("Writing subset in the northern cap")
     mtl_data = Table.read(mtl_file)
     subset_ii = ra_dec_subset(mtl_data)
-    mtl_data[subset_ii].write(initial_mtl_file, overwrite=True)
+    mtl_data[subset_ii].write(os.path.join(args.outdir,initial_mtl_file), overwrite=True)
 
 def write_initial_std_file(initial_mtl_file, initial_std_file):
     mtl_data = Table.read(initial_mtl_file)
@@ -152,13 +151,13 @@ def write_initial_std_file(initial_mtl_file, initial_std_file):
     print('STDMASK', std_mask)
     std_ii = (mtl_data['DESI_TARGET'] & std_mask)!=0
     print(len(std_ii), np.count_nonzero(std_ii))
-    mtl_data[std_ii].write(initial_std_file, overwrite=True)
+    mtl_data[std_ii].write(args+outdir+initial_std_file, overwrite=True)
 
 def write_initial_sky_file(initial_sky_file):
     sky_data = Table.read("/project/projectdirs/desi/target/catalogs/dr8/0.31.0/skies/skies-dr8-0.31.0.fits")
     subset_ii = ra_dec_subset(sky_data)
     print('writing sky')
-    sky_data[subset_ii].write(initial_sky_file, overwrite=True)
+    sky_data[subset_ii].write(os.path.join(args.outdir,initial_sky_file), overwrite=True)
     print('done writing sky')
 
 
@@ -207,7 +206,7 @@ def write_initial_truth_file(initial_truth_file):
     assert np.count_nonzero(iii)==0
     
     print('writing truth')
-    truth.write(initial_truth_file, overwrite=True)
+    truth.write(os.path.join(args.outdir,initial_truth_file), overwrite=True)
     print('done truth')
     
 def prepare_tiles():
@@ -218,7 +217,7 @@ def prepare_tiles():
 
     
     tilefile = 'footprint/subset_tiles.fits'
-    tiles[ii_tiles&ii_subset].write(tilefile, overwrite='True')
+    tiles[ii_tiles&ii_subset].write(os.path.join(args.outdir,tilefile), overwrite='True')
     tiles = Table.read(tilefile)
 
     ii_gray = tiles['PROGRAM']=='GRAY'
@@ -234,13 +233,13 @@ def prepare_tiles():
     footprint['dark2'] = tiles[ii_dark_2]
     footprint['dark3'] = tiles[ii_dark_3]
 
-    footprint['gray'].write('footprint/subset_gray.fits', overwrite=True)
-    footprint['dark0'].write('footprint/subset_dark0.fits', overwrite=True)
-    footprint['dark1'].write('footprint/subset_dark1.fits', overwrite=True)
-    vstack([footprint['dark2'], footprint['dark3']]).write('footprint/subset_dark2_dark3.fits', overwrite=True)
-    vstack([footprint['dark1'], footprint['dark2'], footprint['dark3']]).write('footprint/subset_dark1_dark2_dark3.fits', overwrite=True)
-    vstack([footprint['dark0'], footprint['dark1'], footprint['dark2'], footprint['dark3']]).write('footprint/subset_dark0_dark1_dark2_dark3.fits', overwrite=True)
-    vstack([footprint['gray'], footprint['dark0'], footprint['dark1'], footprint['dark2'], footprint['dark3']]).write('footprint/subset_gray_dark0_dark1_dark2_dark3.fits', overwrite=True)
+    footprint['gray'].write(args.outdir+'/footprint/subset_gray.fits', overwrite=True)
+    footprint['dark0'].write(args.outdir+'/footprint/subset_dark0.fits', overwrite=True)
+    footprint['dark1'].write(args.outdir+'/footprint/subset_dark1.fits', overwrite=True)
+    vstack([footprint['dark2'], footprint['dark3']]).write(args.outdir+'/footprint/subset_dark2_dark3.fits', overwrite=True)
+    vstack([footprint['dark1'], footprint['dark2'], footprint['dark3']]).write(args.outdir+'/footprint/subset_dark1_dark2_dark3.fits', overwrite=True)
+    vstack([footprint['dark0'], footprint['dark1'], footprint['dark2'], footprint['dark3']]).write(args.outdir+'/footprint/subset_dark0_dark1_dark2_dark3.fits', overwrite=True)
+    vstack([footprint['gray'], footprint['dark0'], footprint['dark1'], footprint['dark2'], footprint['dark3']]).write(args.outdir+'/footprint/subset_gray_dark0_dark1_dark2_dark3.fits', overwrite=True)
 
 def create_multi_footprint(expfile, cadence=28):
     
@@ -279,7 +278,7 @@ def create_multi_footprint(expfile, cadence=28):
             table_tiles = Table(dark_gray_tiles[ii])
             subsetnames.append(subsetname)
             print('writing to', tilefile)
-            table_tiles.write(tilefile, overwrite=True)
+            table_tiles.write(os.path.join(args.outdir,tilefile), overwrite=True)
             del table_tiles, 
     del dark_gray_tiles, tiles, exposures        
     return subsetnames
@@ -304,18 +303,18 @@ def run_strategy(footprint_names, pass_names, obsconditions, strategy, initial_m
         pass_name = pass_names[i_pass]
         new_pass_name = pass_names[i_pass+1]
         
-        os.makedirs('{}/fiberassign_{}'.format(strategy, pass_name), exist_ok=True)
-        os.makedirs('{}/targets'.format(strategy), exist_ok=True)
-        os.makedirs('{}/zcat'.format(strategy), exist_ok=True)
+        os.makedirs(args.outdir+'/{}/fiberassign_{}'.format(strategy, pass_name), exist_ok=True)
+        os.makedirs(args.outdir+'/{}/targets'.format(strategy), exist_ok=True)
+        os.makedirs(args.outdir+'/{}/zcat'.format(strategy), exist_ok=True)
 
     
-        assign_footprint_filename = 'footprint/footprint-{}.fits'.format(footprint_name)
-        zcat_footprint_filename = 'footprint/footprint-{}.fits'.format(pass_name)
-        fiberassign_dir = '{}/fiberassign_{}/'.format(strategy, pass_name)
-        mtl_filename = '{}/targets/mtl-{}.fits'.format(strategy, pass_name)
-        new_mtl_filename = '{}/targets/mtl-{}.fits'.format(strategy, new_pass_name)
-        old_zcat_filename = '{}/zcat/zcat-{}.fits'.format(strategy, old_pass_name)
-        zcat_filename = '{}/zcat/zcat-{}.fits'.format(strategy, pass_name)
+        assign_footprint_filename = args.outdir+'/footprint/footprint-{}.fits'.format(footprint_name)
+        zcat_footprint_filename = args.outdir+'/footprint/footprint-{}.fits'.format(pass_name)
+        fiberassign_dir = args.outdir+'/{}/fiberassign_{}/'.format(strategy, pass_name)
+        mtl_filename = args.outdir+'/{}/targets/mtl-{}.fits'.format(strategy, pass_name)
+        new_mtl_filename = args.outdir+'/{}/targets/mtl-{}.fits'.format(strategy, new_pass_name)
+        old_zcat_filename = args.outdir+'/{}/zcat/zcat-{}.fits'.format(strategy, old_pass_name)
+        zcat_filename = args.outdir+'/{}/zcat/zcat-{}.fits'.format(strategy, pass_name)
         
         # Added to resume interrupted runs
         if os.path.exists(new_mtl_filename) and os.path.exists(zcat_filename):
@@ -369,6 +368,7 @@ def run_strategy(footprint_names, pass_names, obsconditions, strategy, initial_m
         # Compute zcat
         if i_pass==0:
             zcat = desisim.quickcat.quickcat(fba_files, targets, truth, perfect=True)
+            zcat_hdu = fits.convenience.table_to_hdu(zcat)
         else:
             old_zcat = Table(fitsio.read(old_zcat_filename))
             zcat = desisim.quickcat.quickcat(fba_files, targets, truth, zcat=old_zcat, perfect=True) 
@@ -382,8 +382,8 @@ def run_strategy(footprint_names, pass_names, obsconditions, strategy, initial_m
         mtl_hdu = fits.convenience.table_to_hdu(mtl)
         fitsio.write(new_mtl_filename, np.array(mtl_hdu.data))
         del mtl
-        
-os.makedirs('footprint', exist_ok=True)
+os.makedirs(args.outdir, exist_ok=True)        
+os.makedirs(args.outdir+'/footprint', exist_ok=True)
 
 initial_mtl_file = args.mtl
 #if not os.path.exists(initial_mtl_file):
@@ -437,4 +437,4 @@ run_strategy(footprint_names, pass_names, obsconditions, 'cadence_{}'.format(arg
 #obsconditions = ['DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY', 'DARK|GRAY']
 #run_strategy(footprint_names, pass_names, obsconditions, 'strategy_B', initial_mtl_file, initial_sky_file, initial_std_file , legacy=False)
 myzcat_file = args.zcat
-eff = compute_efficiency('cadence_{}'.format(args.cadence), pass_names[:-1], initial_mtl_file, initial_truth_file, myzcat_file, legacy=legacy)
+compute_efficiency(args.outdir+'/cadence_{}'.format(args.cadence), pass_names[:-1], initial_mtl_file, initial_truth_file, myzcat_file, legacy=legacy)

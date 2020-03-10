@@ -119,7 +119,7 @@ def compute_efficiency(strategy_name, pass_names, targets_file, truth_file, myzc
     eff_qso = global_eff(targets, favail, zcat, target_class='QSO', zcat_spectype='QSO')
     eff_lrg = global_eff(targets, favail, zcat, target_class='LRG', zcat_spectype='GALAXY')
     eff_elg = global_eff(targets, favail, zcat, target_class='ELG', zcat_spectype='GALAXY')
-    return {'eff_qso':eff_qso, 'eff_lrg':eff_lrg, 'eff_elg':eff_elg}
+    #return {'eff_qso':eff_qso, 'eff_lrg':eff_lrg, 'eff_elg':eff_elg}
 
 
 #targets_file =  "targets/subset_dr8_mtl_dark_gray_NGC.fits"
