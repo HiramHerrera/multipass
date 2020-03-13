@@ -116,9 +116,9 @@ def compute_efficiency(strategy_name, pass_names, targets_file, truth_file, myzc
     #ii = (targets['RA']>140.0) & (targets['RA']<180.0) & (targets['DEC']>10.0) & (targets['DEC']<20)
     #small_targets = targets[ii]
     
-    eff_qso = global_eff(targets, favail, zcat, target_class='QSO', zcat_spectype='QSO')
-    eff_lrg = global_eff(targets, favail, zcat, target_class='LRG', zcat_spectype='GALAXY')
-    eff_elg = global_eff(targets, favail, zcat, target_class='ELG', zcat_spectype='GALAXY')
+    #eff_qso = global_eff(targets, favail, zcat, target_class='QSO', zcat_spectype='QSO')
+    #eff_lrg = global_eff(targets, favail, zcat, target_class='LRG', zcat_spectype='GALAXY')
+    #eff_elg = global_eff(targets, favail, zcat, target_class='ELG', zcat_spectype='GALAXY')
     #return {'eff_qso':eff_qso, 'eff_lrg':eff_lrg, 'eff_elg':eff_elg}
 
 
